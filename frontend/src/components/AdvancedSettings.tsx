@@ -191,17 +191,27 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-slate-400 mb-1">URL Path / Route</label>
-                  <input
-                    type="text"
-                    disabled={disabled}
-                    value={httpPath}
-                    onChange={(e) => setHttpPath(e.target.value)}
-                    placeholder="/ or /search?q=test"
-                    className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
+                {protocol !== 'HTTP_WEBSITE' ? (
+                  <div>
+                    <label className="block text-slate-400 mb-1">URL Path / Route</label>
+                    <input
+                      type="text"
+                      disabled={disabled}
+                      value={httpPath}
+                      onChange={(e) => setHttpPath(e.target.value)}
+                      placeholder="/ or /search?q=test"
+                      className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-slate-400 mb-1">URL Endpoint & Query</label>
+                    <div className="w-full bg-[#0a0f1d]/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 text-xs font-mono flex items-center gap-1.5 h-[38px]">
+                      <span className="text-emerald-400 font-bold">✓</span>
+                      <span className="truncate">Parsed from Target URL</span>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-slate-400 mb-1 flex justify-between">

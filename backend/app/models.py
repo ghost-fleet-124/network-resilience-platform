@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from urllib.parse import urlparse
 import time
 
 class ProtocolEnum(str, Enum):
@@ -59,10 +60,34 @@ class ClusterNode(BaseModel):
     current_ram_pct: float = 0.0
 
 class TargetVerificationRequest(BaseModel):
-    host: str
-    port: int
+    host: Optional[str] = None
+    port: Optional[int] = None
     protocol: ProtocolEnum = ProtocolEnum.HTTP
     challenge_token: Optional[str] = None
+    target_url: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_verification(cls, data: Any):
+        if not isinstance(data, dict):
+            return data
+        target_url = (data.get("target_url") or "").strip()
+        if target_url:
+            raw = target_url
+            if not (raw.startswith("http://") or raw.startswith("https://")):
+                raw = "http://" + raw
+            try:
+                p = urlparse(raw)
+                if p.hostname:
+                    data["host"] = p.hostname
+                data["port"] = p.port or (443 if p.scheme == "https" else 80)
+            except Exception:
+                pass
+        if not data.get("host"):
+            data["host"] = "127.0.0.1"
+        if data.get("port") is None:
+            data["port"] = 80
+        return data
 
 class TargetVerificationResponse(BaseModel):
     host: str
@@ -74,8 +99,8 @@ class TargetVerificationResponse(BaseModel):
     verification_method: Optional[str] = None
 
 class TestStartRequest(BaseModel):
-    host: str
-    port: int
+    host: Optional[str] = None
+    port: Optional[int] = None
     protocol: ProtocolEnum = ProtocolEnum.HTTP
     intensity: IntensityPresetEnum = IntensityPresetEnum.LOW
     target_rps_override: Optional[int] = None
@@ -106,6 +131,52 @@ class TestStartRequest(BaseModel):
     safety_confirmation_acknowledged: Optional[bool] = False
     emergency_threshold_error_pct: Optional[float] = 50.0
     emergency_threshold_latency_ms: Optional[float] = 5000.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_and_normalize_target(cls, data: Any):
+        if not isinstance(data, dict):
+            return data
+        
+        target_url = (data.get("target_url") or "").strip()
+        host = (data.get("host") or "").strip()
+        port = data.get("port")
+        proto = data.get("protocol") or "HTTP"
+
+        if target_url:
+            raw_url = target_url
+            if not (raw_url.startswith("http://") or raw_url.startswith("https://")):
+                raw_url = "http://" + raw_url
+            
+            try:
+                parsed = urlparse(raw_url)
+            except Exception as e:
+                raise ValueError(f"Malformed target URL: {e}")
+
+            if not parsed.hostname:
+                raise ValueError("Target URL must include a valid hostname or IP address (e.g. http://127.0.0.1:9003/)")
+
+            data["host"] = parsed.hostname
+            data["port"] = parsed.port or (443 if parsed.scheme == "https" else 80)
+            data["target_url"] = raw_url
+            
+            path = parsed.path or "/"
+            if parsed.query:
+                path += f"?{parsed.query}"
+            data["http_path"] = path
+            
+            # Automatically recognize HTTPS vs HTTP if not specified
+            if proto not in ("HTTP_WEBSITE", "HTTPS", "HTTP"):
+                data["protocol"] = "HTTPS" if parsed.scheme == "https" else "HTTP_WEBSITE"
+            elif proto == "HTTP" and parsed.scheme == "https":
+                data["protocol"] = "HTTPS"
+            elif proto == "HTTPS" and parsed.scheme == "http":
+                data["protocol"] = "HTTP"
+
+        elif not host or port is None:
+            raise ValueError("Target host and port are required when Target URL is omitted.")
+
+        return data
 
 class MetricSnapshot(BaseModel):
     timestamp: float = Field(default_factory=time.time)

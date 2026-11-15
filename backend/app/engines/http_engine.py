@@ -120,8 +120,12 @@ class HTTPEngine(BaseEngine):
                 self.collector.record_request_result(latency_ms, False, 0, 500)
 
             elapsed = time.perf_counter() - t_start
-            sleep_time = max(0.0005, interval - elapsed)
-            await asyncio.sleep(sleep_time)
+            remaining = interval - elapsed
+            if remaining > 0.002:
+                await asyncio.sleep(remaining)
+            else:
+                # Cooperatively yield control without triggering Windows 15.6ms sleep timer quantum
+                await asyncio.sleep(0)
 
     async def run(self):
         self._is_running = True

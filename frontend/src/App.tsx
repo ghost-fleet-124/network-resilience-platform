@@ -21,6 +21,7 @@ export function App() {
   // Target & Protocol State
   const [host, setHost] = useState<string>('127.0.0.1');
   const [port, setPort] = useState<number>(9001);
+  const [targetUrl, setTargetUrl] = useState<string>('http://127.0.0.1:9003/');
   const [protocol, setProtocol] = useState<Protocol>('UDP');
   const [intensity, setIntensity] = useState<IntensityPreset>('LOW');
 
@@ -105,10 +106,22 @@ export function App() {
   // Auto-sync port if localhost is selected
   const handleSelectProtocol = (p: Protocol) => {
     setProtocol(p);
-    if (host === '127.0.0.1' || host === 'localhost') {
+    if (p === 'HTTP_WEBSITE') {
+      if (!targetUrl || targetUrl.trim() === '') {
+        setTargetUrl('http://127.0.0.1:9003/');
+      }
+      try {
+        const u = new URL(targetUrl || 'http://127.0.0.1:9003/');
+        setHost(u.hostname);
+        setPort(u.port ? parseInt(u.port) : (u.protocol === 'https:' ? 443 : 80));
+      } catch {
+        setHost('127.0.0.1');
+        setPort(9003);
+      }
+    } else if (host === '127.0.0.1' || host === 'localhost') {
       if (p === 'UDP') setPort(9001);
       else if (p === 'TCP') setPort(9002);
-      else if (p === 'HTTP' || p === 'HTTPS' || p === 'HTTP_WEBSITE') setPort(9003);
+      else if (p === 'HTTP' || p === 'HTTPS') setPort(9003);
       else if (p === 'WEBSOCKET') setPort(9004);
       else if (p === 'GAME_UDP') setPort(9005);
     }
@@ -148,11 +161,13 @@ export function App() {
       });
     }
 
+    const isWebsite = protocol === 'HTTP_WEBSITE';
     const payload = {
       host,
       port,
       protocol,
       intensity,
+      target_url: isWebsite ? targetUrl : undefined,
       duration_sec: rampUpSec + sustainedSec + rampDownSec,
       ramp_up_sec: rampUpSec,
       sustained_sec: sustainedSec,
@@ -160,7 +175,7 @@ export function App() {
       packet_size_bytes: packetSize,
       game_tick_hz: gameTickHz,
       http_method: httpMethod,
-      http_path: httpPath,
+      http_path: isWebsite ? undefined : httpPath,
       http_payload: httpPayload,
       http_headers: Object.keys(parsedHeaders).length > 0 ? parsedHeaders : undefined,
       http_follow_redirects: httpFollowRedirects,
@@ -317,6 +332,8 @@ export function App() {
           setHost={setHost}
           port={port}
           setPort={setPort}
+          targetUrl={targetUrl}
+          setTargetUrl={setTargetUrl}
           protocol={protocol}
           setProtocol={handleSelectProtocol}
           isTesting={isTesting}

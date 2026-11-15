@@ -6,6 +6,30 @@ from typing import Dict, List, Optional
 from app.models import MetricSnapshot, TestStatusEnum, TestReport, ProtocolEnum, IntensityPresetEnum
 from app.core.cluster_manager import cluster_manager
 
+class RollingRateBucket:
+    __slots__ = ('slot_id', 'dispatched', 'received', 'successful', 'failed', 'bytes', 'packets_sent', 'packets_recv')
+    def __init__(self):
+        self.slot_id = -1
+        self.dispatched = 0
+        self.received = 0
+        self.successful = 0
+        self.failed = 0
+        self.bytes = 0
+        self.packets_sent = 0
+        self.packets_recv = 0
+
+    def get_or_reset(self, slot_id: int):
+        if self.slot_id != slot_id:
+            self.slot_id = slot_id
+            self.dispatched = 0
+            self.received = 0
+            self.successful = 0
+            self.failed = 0
+            self.bytes = 0
+            self.packets_sent = 0
+            self.packets_recv = 0
+        return self
+
 class MetricsCollector:
     def __init__(
         self,
@@ -35,7 +59,7 @@ class MetricsCollector:
         self.sustained_sec = sustained_sec
         self.ramp_down_sec = ramp_down_sec
 
-        # Cumulative counters
+        # Cumulative counters (Authoritative source of truth)
         self.total_generated_requests = 0
         self.total_received_requests = 0
         self.total_successful_requests = 0
@@ -50,21 +74,16 @@ class MetricsCollector:
         self.successful_conns = 0
         self.failed_conns = 0
 
-        # Sliding window for sub-second rates (1.0-second sliding interval)
-        self._latencies_window: deque = deque(maxlen=2000)
-        self._generated_window: deque = deque(maxlen=300)   # (timestamp, count, bytes)
-        self._received_window: deque = deque(maxlen=300)    # (timestamp, count, bytes)
-        self._successful_window: deque = deque(maxlen=300)  # (timestamp, count)
-        self._failed_window: deque = deque(maxlen=300)      # (timestamp, count)
-        
-        self._packets_sent_window: deque = deque(maxlen=300)
-        self._packets_recv_window: deque = deque(maxlen=300)
+        # Unbounded time-bucketed rolling rate calculator (20 slots of 50ms = 1.0s window)
+        self._bucket_interval = 0.05
+        self._buckets = [RollingRateBucket() for _ in range(20)]
 
-        # Full run records for final report percentiles
+        # Latency statistics reservoir (2000 samples for accurate P50/P95/P99)
+        self._latencies_window: deque = deque(maxlen=2000)
         self._all_latencies_sample: List[float] = []
         self._max_sample_size = 10000
 
-        # Jitter calculation state
+        # RFC 3550 Jitter calculation state
         self._last_latency_ms: Optional[float] = None
         self._jitter_accumulator: float = 0.0
 
@@ -99,25 +118,29 @@ class MetricsCollector:
         now = time.time()
         self.total_generated_requests += count
         self.total_bytes_transferred += bytes_transferred
-        self._generated_window.append((now, count, bytes_transferred))
+
+        slot_id = int(now / self._bucket_interval)
+        b = self._buckets[slot_id % 20].get_or_reset(slot_id)
+        b.dispatched += count
+        b.bytes += bytes_transferred
 
     def record_request_result(self, latency_ms: float, success: bool, bytes_transferred: int, status_code: Optional[int] = None):
         """Records a response received from the target."""
         now = time.time()
         self.total_received_requests += 1
-        if self.total_generated_requests < self.total_received_requests:
-            self.total_generated_requests = self.total_received_requests
-            self._generated_window.append((now, 1, bytes_transferred))
-
         self.total_bytes_transferred += bytes_transferred
-        self._received_window.append((now, 1, bytes_transferred))
+
+        slot_id = int(now / self._bucket_interval)
+        b = self._buckets[slot_id % 20].get_or_reset(slot_id)
+        b.received += 1
+        b.bytes += bytes_transferred
 
         if success:
             self.total_successful_requests += 1
-            self._successful_window.append((now, 1))
+            b.successful += 1
         else:
             self.total_failed_requests += 1
-            self._failed_window.append((now, 1))
+            b.failed += 1
 
         if status_code:
             code_str = str(status_code)
@@ -130,9 +153,13 @@ class MetricsCollector:
         now = time.time()
         self.total_packets_sent += 1
         self.total_bytes_transferred += bytes_transferred
-        self._packets_sent_window.append((now, 1, bytes_transferred))
-        # Also register as generated request
-        self.record_request_generated(1, bytes_transferred)
+        self.total_generated_requests += 1
+
+        slot_id = int(now / self._bucket_interval)
+        b = self._buckets[slot_id % 20].get_or_reset(slot_id)
+        b.packets_sent += 1
+        b.dispatched += 1
+        b.bytes += bytes_transferred
 
     def record_packet_received(self, latency_ms: float, bytes_transferred: int):
         """Records a UDP datagram received & verified."""
@@ -141,15 +168,22 @@ class MetricsCollector:
         self.total_received_requests += 1
         self.total_successful_requests += 1
         self.total_bytes_transferred += bytes_transferred
-        self._packets_recv_window.append((now, 1, bytes_transferred))
-        self._received_window.append((now, 1, bytes_transferred))
-        self._successful_window.append((now, 1))
+
+        slot_id = int(now / self._bucket_interval)
+        b = self._buckets[slot_id % 20].get_or_reset(slot_id)
+        b.packets_recv += 1
+        b.received += 1
+        b.successful += 1
+        b.bytes += bytes_transferred
+
         self._record_latency(latency_ms)
 
     def record_packet_lost(self):
         now = time.time()
         self.total_failed_requests += 1
-        self._failed_window.append((now, 1))
+        slot_id = int(now / self._bucket_interval)
+        b = self._buckets[slot_id % 20].get_or_reset(slot_id)
+        b.failed += 1
 
     def _record_latency(self, latency_ms: float):
         self._latencies_window.append(latency_ms)
@@ -192,24 +226,20 @@ class MetricsCollector:
 
     def get_snapshot(self) -> MetricSnapshot:
         now = time.time()
-        elapsed = now - self.start_time
-        cutoff_1s = now - 1.0
+        elapsed = max(0.05, now - self.start_time)
+        cur_slot = int(now / self._bucket_interval)
+        min_slot = cur_slot - 19  # Last 20 slots = last 1.0 second
 
-        # Sub-second rates
-        gen_1s = [item for item in self._generated_window if item[0] >= cutoff_1s]
-        recv_1s = [item for item in self._received_window if item[0] >= cutoff_1s]
-        succ_1s = [item for item in self._successful_window if item[0] >= cutoff_1s]
-        fail_1s = [item for item in self._failed_window if item[0] >= cutoff_1s]
+        active_buckets = [b for b in self._buckets if min_slot <= b.slot_id <= cur_slot]
+        time_factor = 1.0 if elapsed >= 1.0 else (1.0 / elapsed)
 
-        pkt_sent_1s = [item for item in self._packets_sent_window if item[0] >= cutoff_1s]
+        generated_rps = round(sum(b.dispatched for b in active_buckets) * time_factor, 1)
+        received_rps = round(sum(b.received for b in active_buckets) * time_factor, 1)
+        successful_rps = round(sum(b.successful for b in active_buckets) * time_factor, 1)
+        failed_rps = round(sum(b.failed for b in active_buckets) * time_factor, 1)
+        pps = round(sum(b.packets_sent for b in active_buckets) * time_factor, 1)
 
-        generated_rps = sum(item[1] for item in gen_1s)
-        received_rps = sum(item[1] for item in recv_1s)
-        successful_rps = sum(item[1] for item in succ_1s)
-        failed_rps = sum(item[1] for item in fail_1s)
-        pps = sum(item[1] for item in pkt_sent_1s)
-
-        bytes_1s = sum(item[2] for item in gen_1s) + sum(item[2] for item in recv_1s)
+        bytes_1s = sum(b.bytes for b in active_buckets) * time_factor
         throughput_kbps = round((bytes_1s * 8) / 1024, 2)
 
         lat_stats = self.compute_percentiles(list(self._latencies_window))
@@ -239,12 +269,9 @@ class MetricsCollector:
         if self.target_rps > cluster_capacity and generated_rps >= cluster_capacity * 0.85:
             capacity_warning = f"Current generator nodes saturated ({generated_rps:,.0f} RPS / {cluster_capacity:,.0f} cap). Cluster expansion of {nodes_needed} machines required to reach requested {self.target_rps:,} RPS."
 
-        try:
-            cpu_pct = psutil.cpu_percent(interval=None)
-            ram_pct = psutil.virtual_memory().percent
-        except Exception:
-            cpu_pct = 0.0
-            ram_pct = 0.0
+        # Host resource metrics
+        cpu_pct = psutil.cpu_percent()
+        ram_pct = psutil.virtual_memory().percent
 
         snapshot = MetricSnapshot(
             timestamp=now,
@@ -256,7 +283,7 @@ class MetricsCollector:
             received_rps=received_rps,
             successful_rps=successful_rps,
             failed_rps=failed_rps,
-            req_per_sec=received_rps or generated_rps,
+            req_per_sec=received_rps,
             packets_per_sec=pps,
             active_conns=self.active_conns,
             successful_conns=self.successful_conns,
