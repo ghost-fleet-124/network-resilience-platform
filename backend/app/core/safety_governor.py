@@ -193,8 +193,7 @@ class SafetyGovernor:
     async def verify_target_authorization(
         self,
         host: str,
-        port: int,
-        challenge_token: Optional[str] = None
+        port: int
     ) -> TargetVerificationResponse:
         """
         Evaluates whether a target is approved for resilience testing.

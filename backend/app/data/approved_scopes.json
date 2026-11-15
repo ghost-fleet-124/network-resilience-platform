@@ -65,5 +65,23 @@
     "status": "EXPIRED",
     "notes": "Historical testing scope for concluded 2025 tournament. Permission expired.",
     "created_at": 1794773069.0392022
+  },
+  {
+    "scope_id": "scope_1794773535_91f83a",
+    "name": "ABES Academic & Campus Server Ingress",
+    "organization": "ABES Engineering College",
+    "authorized_by": "network-admin@abes.ac.in",
+    "target_pattern": "*.abes.ac.in",
+    "allowed_ports": [
+      80,
+      443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794773535.3529058,
+    "valid_until": 1802549535.3529058,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794773535.3529553
   }
 ]

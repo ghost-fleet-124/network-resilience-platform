@@ -110,9 +110,6 @@ async def handle_health(request):
         "timestamp": time.time()
     })
 
-async def handle_challenge(request):
-    return web.Response(text="resilience-auth-token-verified-local-sandbox-env\n")
-
 async def start_mock_http(port: int = 9003):
     app = web.Application()
     app.router.add_get("/", handle_root)
@@ -126,7 +123,6 @@ async def start_mock_http(port: int = 9003):
     app.router.add_get("/test/status/{code}", handle_custom_status)
     app.router.add_get("/api/matchmaking", handle_matchmaking)
     app.router.add_get("/api/health", handle_health)
-    app.router.add_get("/.well-known/resilience-challenge.txt", handle_challenge)
 
     runner = web.AppRunner(app)
     await runner.setup()

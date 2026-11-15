@@ -63,7 +63,6 @@ class TargetVerificationRequest(BaseModel):
     host: Optional[str] = None
     port: Optional[int] = None
     protocol: ProtocolEnum = ProtocolEnum.HTTP
-    challenge_token: Optional[str] = None
     target_url: Optional[str] = None
 
     @model_validator(mode="before")
@@ -131,7 +130,6 @@ class TargetVerificationResponse(BaseModel):
     expires_at: Optional[float] = None
     rejection_reason: Optional[str] = None
     verification_method: Optional[str] = None
-    challenge_token: Optional[str] = None
 
 class TestStartRequest(BaseModel):
     host: Optional[str] = None

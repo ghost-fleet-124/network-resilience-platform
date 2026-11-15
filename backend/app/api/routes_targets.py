@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/targets", tags=["targets"])
 
 @router.post("/verify", response_model=TargetVerificationResponse)
 async def verify_target(req: TargetVerificationRequest):
-    return await safety_governor.verify_target_authorization(req.host, req.port, req.challenge_token)
+    return await safety_governor.verify_target_authorization(req.host, req.port)
 
 @router.get("/scopes", response_model=List[ApprovedScope])
 async def list_authorized_scopes():

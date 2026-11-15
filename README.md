@@ -67,7 +67,8 @@ The platform features a dedicated **HTTP Website Load Testing** mode for benchma
 ## 5. Intelligent Safety Architecture
 
 * **High-Intensity Confirmation Gate**: Any test targeting $\ge 500,000\text{ RPS}$ against external infrastructure requires an explicit operator confirmation affirming ownership or written testing authorization.
-* **Target Scope Verification**: Distinguishes local sandbox targets (`127.0.0.1`, `localhost`), private RFC 1918 networks, and public endpoints requiring cryptographic HTTP verification tokens (`/.well-known/resilience-challenge.txt`).
+* **Target Scope Verification**: Distinguishes local sandbox targets (`127.0.0.1`, `localhost`), private RFC 1918 networks, and approved organization scopes (`*.staging.example.com`, subnets, or domain patterns) with zero challenge files required.
+* **Acceptable Use Policy & Compliance**: Enforces explicit legal boundaries, terms of service, and privacy retention schedules. Accepting terms alone does not authorize external targets without a registered scope.
 * **Emergency Circuit Breaker**: Auto-aborts tests if error rates exceed 50% or latency exceeds 5,000ms.
 * **Instant Kill Switch**: Immediate termination of all worker sockets in $< 50\text{ ms}$.
 

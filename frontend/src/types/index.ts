@@ -172,7 +172,6 @@ export interface TargetVerification {
   is_authorized: boolean;
   scope: string;
   message: string;
-  challenge_token?: string;
   verification_method?: string;
 }
 
