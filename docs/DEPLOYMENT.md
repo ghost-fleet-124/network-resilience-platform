@@ -70,7 +70,26 @@ services:
 
 ---
 
-## 3. Prometheus & Grafana Configuration
+## 3. Railway Cloud Deployment (Step-by-Step)
+
+The repository includes native `railway.json`, `Dockerfile`, and `Procfile` configurations for instant deployment on [Railway](https://railway.com):
+
+1. **Log in to Railway**: Go to [https://railway.com](https://railway.com) (or [https://railway.app](https://railway.app)) and connect with your GitHub account (`ghost-fleet-124`).
+2. **Create New Project**:
+   * Click **+ New Project**.
+   * Select **Deploy from GitHub repo**.
+   * Select `ghost-fleet-124/network-resilience-platform`.
+3. **Automatic Build & Detection**:
+   * Railway automatically reads `railway.json` and builds via the multi-stage `Dockerfile`.
+   * It builds the React Vite frontend, sets up Python 3.11 with `psutil` and networking dependencies, mounts `/health` for the automated healthcheck, and assigns the dynamic `$PORT`.
+4. **Generate Public Domain**:
+   * In your Railway service settings, click **Networking** -> **Generate Domain** (e.g. `https://network-resilience-platform.up.railway.app`).
+5. **Start Testing**:
+   * Open the generated Railway domain in your browser to access the live dashboard!
+
+---
+
+## 4. Prometheus & Grafana Configuration
 
 ### Prometheus Scrape Configuration (`prometheus.yml`):
 ```yaml
