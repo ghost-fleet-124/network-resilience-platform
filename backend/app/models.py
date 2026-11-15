@@ -8,6 +8,7 @@ class ProtocolEnum(str, Enum):
     TCP = "TCP"
     HTTP = "HTTP"
     HTTPS = "HTTPS"
+    HTTP_WEBSITE = "HTTP_WEBSITE"
     WEBSOCKET = "WEBSOCKET"
     GAME_UDP = "GAME_UDP"
     GRPC = "GRPC"
@@ -80,6 +81,17 @@ class TestStartRequest(BaseModel):
     target_rps_override: Optional[int] = None
     duration_sec: Optional[int] = None
     
+    # URL & Website Testing configuration
+    target_url: Optional[str] = None
+    http_method: Optional[str] = "GET"
+    http_path: Optional[str] = "/"
+    http_payload: Optional[str] = None
+    http_headers: Optional[Dict[str, str]] = None
+    http_follow_redirects: Optional[bool] = True
+    http_keep_alive: Optional[bool] = True
+    http_timeout_sec: Optional[float] = 5.0
+    http_virtual_users: Optional[int] = None
+    
     # Workload curve timings
     ramp_up_sec: Optional[int] = 5
     sustained_sec: Optional[int] = 30
@@ -88,9 +100,6 @@ class TestStartRequest(BaseModel):
     # Protocol & payload tuning
     packet_size_bytes: Optional[int] = Field(default=256, ge=32, le=4096)
     game_tick_hz: Optional[int] = Field(default=60, ge=10, le=128)
-    http_method: Optional[str] = "GET"
-    http_path: Optional[str] = "/"
-    http_payload: Optional[str] = None
     ws_path: Optional[str] = "/"
     
     # Safety & emergency boundaries
@@ -149,6 +158,9 @@ class MetricSnapshot(BaseModel):
     capacity_warning: Optional[str] = None
     
     status_codes: Dict[str, int] = Field(default_factory=dict)
+    timeouts_count: int = 0
+    tls_handshake_ms: float = 0.0
+    avg_response_bytes: float = 0.0
     active_workers: int = 0
     safety_circuit_status: str = "NORMAL"
 
@@ -170,6 +182,12 @@ class TestReport(BaseModel):
     peak_received_rps: float = 0.0
     peak_successful_rps: float = 0.0
     avg_generated_rps: float = 0.0
+    
+    # Website specifics
+    successful_request_pct: float = 0.0
+    max_sustainable_rps: float = 0.0
+    timeouts_count: int = 0
+    website_analysis: Dict[str, Any] = Field(default_factory=dict)
     
     # Traffic totals
     total_packets_sent: int = 0

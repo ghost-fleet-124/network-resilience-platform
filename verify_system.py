@@ -92,6 +92,49 @@ def test_api():
         log(f"Final Report: Target={report['target_rps']:,} RPS | Peak Generated={report['peak_generated_rps']:,.0f} RPS | SLA={report['sla_verdict']}")
         log(f"Cluster Scaling Analysis: {report.get('cluster_analysis')}")
 
+    time.sleep(1.0)
+
+    log("Verifying HTTP Website Load Testing feature...")
+    web_start_payload = json.dumps({
+        "host": "127.0.0.1",
+        "port": 9003,
+        "protocol": "HTTP_WEBSITE",
+        "intensity": "LOW",
+        "duration_sec": 3,
+        "target_url": "http://127.0.0.1:9003/search?q=championship_final",
+        "http_method": "GET",
+        "http_headers": {"X-Test-Source": "Resilience-Platform-Verifier"},
+        "http_follow_redirects": True,
+        "http_keep_alive": True,
+        "http_timeout_sec": 3.0,
+        "http_virtual_users": 15,
+        "safety_confirmation_acknowledged": True
+    }).encode("utf-8")
+    req = urllib.request.Request(f"{base_url}/api/tests/start", data=web_start_payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        web_info = json.loads(resp.read().decode())
+        log(f"Website Load Test launched: Protocol={web_info['protocol']}, Target={web_info['target_rps']:,} RPS")
+
+    time.sleep(1.5)
+
+    req = urllib.request.Request(f"{base_url}/api/tests/status")
+    with urllib.request.urlopen(req) as resp:
+        web_status = json.loads(resp.read().decode())
+        snap = web_status.get("snapshot")
+        assert snap is not None
+        log(f"  Live Website RPS: Generated={snap['generated_rps']:,.0f}, Received={snap['received_rps']:,.0f}")
+        log(f"  Live Status Codes: {snap.get('status_codes')}")
+        assert snap.get("status_codes", {}).get("200", 0) > 0
+
+    req = urllib.request.Request(f"{base_url}/api/tests/stop", data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        web_stop = json.loads(resp.read().decode())
+        web_rep = web_stop.get("report")
+        assert web_rep is not None
+        assert "website_analysis" in web_rep
+        log(f"  Website Scorecard: Success Rate={web_rep['website_analysis']['successful_request_pct']}%, Max Sustainable RPS={web_rep['website_analysis']['max_sustainable_rps']:,.0f}")
+        log(f"  Website Summary: {web_rep['website_analysis']['summary']}")
+
     log("Verifying Prometheus /metrics exporter...")
     req = urllib.request.Request(f"{base_url}/metrics")
     with urllib.request.urlopen(req) as resp:

@@ -46,7 +46,25 @@ For UDP, transport-level **Packets Per Second (PPS)** are distinguished from app
 
 ---
 
-## 4. Intelligent Safety Architecture
+## 4. HTTP Website Load Testing & Flood Mode
+
+The platform features a dedicated **HTTP Website Load Testing** mode for benchmarking websites, eCommerce stores, and API gateways:
+
+* **Full URL Input & Auto-Parsing**: Enter `https://example.com/api/v1` or `http://127.0.0.1:9003/search?q=test` with automatic scheme, host, port, and query parsing.
+* **HTTP & HTTPS with TLS Handshake Timing**: Evaluates SSL/TLS overhead under extreme concurrency.
+* **GET & POST Workloads**: Supports form submissions, checkout payloads (`{"items": [...]}`), and custom JSON bodies.
+* **Connection Reuse & Keep-Alive**: Toggle HTTP Keep-Alive (`force_close=False`) vs rapid TCP tear-downs simulating distinct visitor connections.
+* **Redirect Traversal**: Follows HTTP 301/302 redirects without dropping session context.
+* **Custom Headers**: Pass authorization bearer tokens, custom User-Agents, and cookies.
+* **Website SLA Scorecard**: Automatically measures:
+  - **Success Rate %** (2xx/3xx vs 4xx/5xx/Timeouts)
+  - **Maximum Sustainable Request Rate (RPS)**
+  - **Latency Degradation % under sustained load**
+  - **HTTP Status Code Breakdown** (2xx, 3xx, 4xx, 5xx, 504 Timeouts)
+
+---
+
+## 5. Intelligent Safety Architecture
 
 * **High-Intensity Confirmation Gate**: Any test targeting $\ge 500,000\text{ RPS}$ against external infrastructure requires an explicit operator confirmation affirming ownership or written testing authorization.
 * **Target Scope Verification**: Distinguishes local sandbox targets (`127.0.0.1`, `localhost`), private RFC 1918 networks, and public endpoints requiring cryptographic HTTP verification tokens (`/.well-known/resilience-challenge.txt`).

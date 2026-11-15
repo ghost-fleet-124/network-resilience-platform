@@ -284,6 +284,8 @@ class MetricsCollector:
             nodes_needed_for_target=nodes_needed,
             capacity_warning=capacity_warning,
             status_codes=dict(self.status_codes),
+            timeouts_count=self.status_codes.get("504", 0),
+            avg_response_bytes=round(self.total_bytes_transferred / max(1, self.total_successful_requests), 1),
             safety_circuit_status="TRIPPED" if self.status == TestStatusEnum.CIRCUIT_BROKEN else "NORMAL"
         )
         self.snapshots_history.append(snapshot)
@@ -310,6 +312,36 @@ class MetricsCollector:
 
         total_ops = self.total_successful_requests + self.total_failed_requests
         error_rate = (self.total_failed_requests / total_ops * 100) if total_ops > 0 else 0.0
+        success_pct = (self.total_successful_requests / total_ops * 100) if total_ops > 0 else 0.0
+        timeouts = self.status_codes.get("504", 0)
+
+        # Maximum sustainable request rate: highest generated RPS where error rate was < 5%
+        healthy_snaps = [s for s in self.snapshots_history if s.error_rate_pct < 5.0 and s.p95_latency_ms < 1000.0]
+        max_sustainable_rps = max([s.generated_rps for s in healthy_snaps], default=peak_succ_rps)
+
+        # Performance degradation under increased load
+        early_snaps = self.snapshots_history[:max(1, len(self.snapshots_history) // 3)]
+        early_lat = (sum(s.avg_latency_ms for s in early_snaps) / len(early_snaps)) if early_snaps else all_stats["avg"]
+        degradation_pct = round(((all_stats["p95"] - early_lat) / max(0.1, early_lat)) * 100, 1) if early_lat > 0 else 0.0
+
+        website_analysis = {
+            "successful_request_pct": round(success_pct, 2),
+            "max_sustainable_rps": round(max_sustainable_rps, 1),
+            "status_code_breakdown": dict(self.status_codes),
+            "timeouts_count": timeouts,
+            "avg_latency_ms": all_stats["avg"],
+            "p50_latency_ms": all_stats["p50"],
+            "p95_latency_ms": all_stats["p95"],
+            "p99_latency_ms": all_stats["p99"],
+            "throughput_kbps": avg_throughput,
+            "degradation_under_load_pct": max(0.0, degradation_pct),
+            "objective_met": (success_pct >= 95.0 and all_stats["p95"] < 250.0),
+            "summary": (
+                f"Website processed {self.total_successful_requests:,} successful requests ({success_pct:.1f}% success rate) "
+                f"with peak throughput of {peak_throughput:,.1f} Kbps. Maximum sustainable throughput was {max_sustainable_rps:,.0f} RPS "
+                f"with P95 response time of {all_stats['p95']:.1f}ms."
+            )
+        }
 
         # Cluster capacity analysis
         cluster_capacity = cluster_manager.get_cluster_capacity_rps()
@@ -321,6 +353,14 @@ class MetricsCollector:
             recommendations.append(
                 f"Cluster Capacity Bottleneck: Requested target was {self.target_rps:,} RPS, but active generator nodes maxed out at {peak_gen_rps:,.0f} RPS ({int((peak_gen_rps/self.target_rps)*100)}% of target). Deploy {nodes_needed} generator worker machines to reach full target."
             )
+
+        if self.protocol in (ProtocolEnum.HTTP, ProtocolEnum.HTTPS, ProtocolEnum.HTTP_WEBSITE):
+            if timeouts > 0:
+                recommendations.append(f"Gateway Timeouts Detected: {timeouts} requests timed out (HTTP 504). Increase backend worker concurrency and database connection pool limits.")
+            if self.status_codes.get("502", 0) > 0:
+                recommendations.append("Reverse Proxy Gateway Errors (HTTP 502): Web server socket backlog filled up. Increase somaxconn and keep-alive pool size.")
+            if degradation_pct > 100.0:
+                recommendations.append(f"High Latency Degradation: Response times degraded by +{degradation_pct}% under sustained load. Implement page caching, CDN offloading, or read replicas.")
 
         if error_rate == 0.0 and all_stats["p95"] < 50.0 and loss_pct < 0.5:
             sla_verdict = "EXCELLENT"
@@ -351,6 +391,10 @@ class MetricsCollector:
             peak_received_rps=peak_recv_rps,
             peak_successful_rps=peak_succ_rps,
             avg_generated_rps=round(self.total_generated_requests / max(duration, 0.1), 1),
+            successful_request_pct=round(success_pct, 2),
+            max_sustainable_rps=round(max_sustainable_rps, 1),
+            timeouts_count=timeouts,
+            website_analysis=website_analysis,
             total_packets_sent=self.total_packets_sent,
             total_packets_received=self.total_packets_received,
             packet_loss_pct=loss_pct,

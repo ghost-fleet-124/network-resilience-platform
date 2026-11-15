@@ -1,81 +1,179 @@
 import asyncio
 import time
 import aiohttp
+from urllib.parse import urlparse
 from app.engines.base_engine import BaseEngine
 from app.models import ProtocolEnum
 
 class HTTPEngine(BaseEngine):
-    async def _worker_loop(self, session: aiohttp.ClientSession, base_rate_per_worker: float, url: str):
-        method = (self.req.http_method or "GET").upper()
-        payload = self.req.http_payload
+    """
+    High-Performance HTTP / HTTPS Website Load Testing Engine.
+    Simulates realistic website and API traffic:
+    - Homepage visits, page navigation, search queries, POST submissions
+    - Configurable request headers, POST payloads, redirects, keep-alive, and timeouts
+    - Measures status codes, response sizes, latencies, and TLS/connection handshakes
+    """
 
+    def _resolve_target_url(self) -> str:
+        # Check if full target_url was provided
+        raw = (self.req.target_url or "").strip()
+        if not raw:
+            raw = self.req.host.strip()
+
+        if raw.startswith("http://") or raw.startswith("https://"):
+            parsed = urlparse(raw)
+            scheme = parsed.scheme
+            host = parsed.hostname or "127.0.0.1"
+            port = parsed.port or (443 if scheme == "https" else 80)
+            path = parsed.path or "/"
+            if parsed.query:
+                path += f"?{parsed.query}"
+            return f"{scheme}://{host}:{port}{path}"
+        else:
+            scheme = "https" if self.req.protocol in (ProtocolEnum.HTTPS,) else "http"
+            path = (self.req.http_path or "/").strip()
+            if not path.startswith("/"):
+                path = "/" + path
+            return f"{scheme}://{self.req.host}:{self.req.port}{path}"
+
+    async def _worker_loop(
+        self,
+        session: aiohttp.ClientSession,
+        base_rate_per_worker: float,
+        url: str,
+        method: str,
+        headers: dict,
+        payload: bytes,
+        allow_redirects: bool
+    ):
         while self._is_running and not self._stop_event.is_set():
             if self._is_paused:
                 await asyncio.sleep(0.1)
                 continue
 
-            # Modulate according to workload curve
             multiplier = self.collector.get_current_workload_multiplier()
-            effective_worker_rate = max(0.1, base_rate_per_worker * multiplier)
-            interval = 1.0 / effective_worker_rate
+            effective_rate = max(0.1, base_rate_per_worker * multiplier)
+            interval = 1.0 / effective_rate
 
-            t_start = time.time()
-            self.collector.record_request_generated(1, len(payload or "") + 64)
+            t_start = time.perf_counter()
+            outbound_bytes = len(payload) + sum(len(k) + len(v) + 4 for k, v in headers.items()) + len(url) + 16
+            self.collector.record_request_generated(1, outbound_bytes)
 
             try:
-                headers = {"User-Agent": "Antigravity-Resilience-Tester/2.0"}
                 if method == "POST":
-                    async with session.post(url, data=payload or "{}", headers=headers) as resp:
+                    async with session.post(
+                        url,
+                        data=payload,
+                        headers=headers,
+                        allow_redirects=allow_redirects
+                    ) as resp:
                         body = await resp.read()
-                        latency_ms = (time.time() - t_start) * 1000.0
-                        total_bytes = len(body) + len(str(resp.headers))
+                        latency_ms = (time.perf_counter() - t_start) * 1000.0
+                        total_bytes = len(body) + sum(len(k) + len(v) + 4 for k, v in resp.headers.items())
                         is_success = (200 <= resp.status < 400)
                         self.collector.record_request_result(latency_ms, is_success, total_bytes, resp.status)
-                else:
-                    async with session.get(url, headers=headers) as resp:
+                elif method == "PUT":
+                    async with session.put(
+                        url,
+                        data=payload,
+                        headers=headers,
+                        allow_redirects=allow_redirects
+                    ) as resp:
                         body = await resp.read()
-                        latency_ms = (time.time() - t_start) * 1000.0
-                        total_bytes = len(body) + len(str(resp.headers))
+                        latency_ms = (time.perf_counter() - t_start) * 1000.0
+                        total_bytes = len(body) + sum(len(k) + len(v) + 4 for k, v in resp.headers.items())
+                        is_success = (200 <= resp.status < 400)
+                        self.collector.record_request_result(latency_ms, is_success, total_bytes, resp.status)
+                elif method == "HEAD":
+                    async with session.head(
+                        url,
+                        headers=headers,
+                        allow_redirects=allow_redirects
+                    ) as resp:
+                        latency_ms = (time.perf_counter() - t_start) * 1000.0
+                        total_bytes = sum(len(k) + len(v) + 4 for k, v in resp.headers.items())
+                        is_success = (200 <= resp.status < 400)
+                        self.collector.record_request_result(latency_ms, is_success, total_bytes, resp.status)
+                else: # Default GET
+                    async with session.get(
+                        url,
+                        headers=headers,
+                        allow_redirects=allow_redirects
+                    ) as resp:
+                        body = await resp.read()
+                        latency_ms = (time.perf_counter() - t_start) * 1000.0
+                        total_bytes = len(body) + sum(len(k) + len(v) + 4 for k, v in resp.headers.items())
                         is_success = (200 <= resp.status < 400)
                         self.collector.record_request_result(latency_ms, is_success, total_bytes, resp.status)
 
             except asyncio.TimeoutError:
-                latency_ms = (time.time() - t_start) * 1000.0
+                latency_ms = (time.perf_counter() - t_start) * 1000.0
                 self.collector.record_request_result(latency_ms, False, 0, 504)
             except aiohttp.ClientConnectorError:
-                latency_ms = (time.time() - t_start) * 1000.0
+                latency_ms = (time.perf_counter() - t_start) * 1000.0
                 self.collector.record_request_result(latency_ms, False, 0, 502)
+            except aiohttp.ClientResponseError as ce:
+                latency_ms = (time.perf_counter() - t_start) * 1000.0
+                self.collector.record_request_result(latency_ms, False, 0, ce.status or 500)
             except Exception:
-                latency_ms = (time.time() - t_start) * 1000.0
+                latency_ms = (time.perf_counter() - t_start) * 1000.0
                 self.collector.record_request_result(latency_ms, False, 0, 500)
 
-            elapsed = time.time() - t_start
-            sleep_time = max(0.001, interval - elapsed)
+            elapsed = time.perf_counter() - t_start
+            sleep_time = max(0.0005, interval - elapsed)
             await asyncio.sleep(sleep_time)
 
     async def run(self):
         self._is_running = True
-        scheme = "https" if self.req.protocol == ProtocolEnum.HTTPS else "http"
-        path = self.req.http_path or "/"
-        if not path.startswith("/"):
-            path = "/" + path
-        url = f"{scheme}://{self.req.host}:{self.req.port}{path}"
+        url = self._resolve_target_url()
+        method = (self.req.http_method or "GET").upper()
+        
+        # Prepare headers
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Antigravity-Resilience/2.5",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if self.req.http_headers:
+            headers.update(self.req.http_headers)
 
-        conns = max(1, min(self.max_conns, 500))
+        # Prepare payload
+        payload_bytes = b""
+        if self.req.http_payload:
+            payload_bytes = self.req.http_payload.encode("utf-8")
+            if "Content-Type" not in headers:
+                headers["Content-Type"] = "application/json" if self.req.http_payload.strip().startswith("{") else "text/plain"
+
+        # Concurrency & pacing configuration
+        conns = self.req.http_virtual_users or max(1, min(self.max_conns, 500))
         rate_per_worker = self.target_rate / conns
+        allow_redirects = True if self.req.http_follow_redirects is None else self.req.http_follow_redirects
+        keep_alive = True if self.req.http_keep_alive is None else self.req.http_keep_alive
+        timeout_sec = self.req.http_timeout_sec or 5.0
 
         connector = aiohttp.TCPConnector(
-            limit=conns + 100,
-            limit_per_host=conns + 100,
+            limit=conns + 200,
+            limit_per_host=conns + 200,
             enable_cleanup_closed=True,
-            force_close=False
+            force_close=not keep_alive, # If keep_alive is False, force_close closes socket after request
+            ttl_dns_cache=300
         )
-        timeout = aiohttp.ClientTimeout(total=5.0, connect=3.0)
+        timeout = aiohttp.ClientTimeout(total=timeout_sec, connect=min(3.0, timeout_sec))
 
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
             self.collector.record_connection_change(conns, True)
-            for i in range(conns):
-                t = asyncio.create_task(self._worker_loop(session, rate_per_worker, url))
+            for _ in range(conns):
+                t = asyncio.create_task(
+                    self._worker_loop(
+                        session=session,
+                        base_rate_per_worker=rate_per_worker,
+                        url=url,
+                        method=method,
+                        headers=headers,
+                        payload=payload_bytes,
+                        allow_redirects=allow_redirects
+                    )
+                )
                 self._tasks.append(t)
 
             try:

@@ -10,7 +10,9 @@ import {
   Server,
   AlertTriangle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Globe,
+  Timer
 } from 'lucide-react';
 import { MetricSnapshot } from '../types';
 
@@ -28,6 +30,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
   const pps = snapshot ? snapshot.packets_per_sec : 0;
   const activeConns = snapshot ? snapshot.active_conns : 0;
   const avgLat = snapshot ? snapshot.avg_latency_ms : 0;
+  const p50Lat = snapshot ? snapshot.p50_latency_ms : 0;
   const p95Lat = snapshot ? snapshot.p95_latency_ms : 0;
   const p99Lat = snapshot ? snapshot.p99_latency_ms : 0;
   const jitter = snapshot ? snapshot.jitter_ms : 0;
@@ -38,6 +41,24 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
   const generatorCapPct = snapshot ? snapshot.generator_capacity_pct : 0;
   const clusterMaxRps = snapshot ? snapshot.cluster_max_achievable_rps : 100000;
   const nodesNeeded = snapshot ? snapshot.nodes_needed_for_target : 1;
+
+  // Status code aggregation
+  const statusCodes = snapshot?.status_codes || {};
+  const status2xx = Object.entries(statusCodes)
+    .filter(([c]) => c.startsWith('2'))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const status3xx = Object.entries(statusCodes)
+    .filter(([c]) => c.startsWith('3'))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const status4xx = Object.entries(statusCodes)
+    .filter(([c]) => c.startsWith('4'))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const status5xx = Object.entries(statusCodes)
+    .filter(([c]) => c.startsWith('5'))
+    .reduce((sum, [, count]) => sum + count, 0);
+  const timeouts = snapshot?.timeouts_count || (statusCodes['504'] || 0);
+
+  const hasStatusCodes = Object.keys(statusCodes).length > 0;
 
   return (
     <div className="space-y-3">
@@ -117,6 +138,42 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
         )}
       </div>
 
+      {/* HTTP Status Code & Website Telemetry Bar (Visible when status codes recorded) */}
+      {hasStatusCodes && (
+        <div className="bg-[#0b101e] border border-emerald-500/40 rounded-2xl p-3 shadow-lg font-mono text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-wider">
+              <Globe className="w-4 h-4" />
+              <span>HTTP Status Distribution & Website Telemetry:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-700/80 text-emerald-300 font-bold">
+                2xx Success: {status2xx.toLocaleString()}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-sky-950 border border-sky-700/80 text-sky-300 font-bold">
+                3xx Redirect: {status3xx.toLocaleString()}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-700/80 text-amber-300 font-bold">
+                4xx Client Err: {status4xx.toLocaleString()}
+              </span>
+              <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-700/80 text-rose-300 font-bold">
+                5xx Server Err: {status5xx.toLocaleString()}
+              </span>
+              {timeouts > 0 && (
+                <span className="px-2 py-0.5 rounded bg-red-950 border border-red-600 text-red-200 font-bold animate-pulse">
+                  Timeouts (504): {timeouts.toLocaleString()}
+                </span>
+              )}
+              {snapshot?.avg_response_bytes ? (
+                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                  Avg Size: {(snapshot.avg_response_bytes / 1024).toFixed(1)} KB
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Secondary Metrics Row (Latency, Tail P95/P99, Loss & Jitter, Concurrency, Throughput, Generator Load) */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         
@@ -138,7 +195,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
         {/* 2. Average Latency */}
         <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
           <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Average Latency</span>
+            <span>Avg Response</span>
             <Clock className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="text-2xl font-extrabold text-emerald-400 font-mono">
@@ -146,37 +203,36 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
             <span className="text-xs text-slate-500 font-sans ml-1">ms</span>
           </div>
           <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            Min: {snapshot ? snapshot.min_latency_ms.toFixed(1) : 0}ms &bull; Max: {snapshot ? snapshot.max_latency_ms.toFixed(1) : 0}ms
+            P50 Median: {p50Lat.toFixed(1)} ms
           </div>
         </div>
 
-        {/* 3. Tail Latencies (P95 / P99) */}
+        {/* 3. P95 / P99 Tail Latency */}
         <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
           <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Tail Latency</span>
-            <TrendingUp className="w-4 h-4 text-purple-400" />
+            <span>P95 / P99 Tail</span>
+            <Activity className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-extrabold text-amber-400 font-mono">
+            {p95Lat.toFixed(1)}
+            <span className="text-xs text-slate-500 font-sans ml-1">ms</span>
+          </div>
+          <div className="mt-1 text-[11px] text-slate-400 font-mono">
+            P99 Latency: {p99Lat.toFixed(1)} ms
+          </div>
+        </div>
+
+        {/* 4. Loss & Jitter */}
+        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
+          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
+            <span>Loss / Drops</span>
+            <Radio className="w-4 h-4 text-purple-400" />
           </div>
           <div className="text-2xl font-extrabold text-purple-400 font-mono">
-            {p95Lat.toFixed(1)}
-            <span className="text-xs text-slate-500 font-sans ml-1">ms (P95)</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            P50: {snapshot ? snapshot.p50_latency_ms.toFixed(1) : 0}ms &bull; P99: <span className="text-purple-300 font-bold">{p99Lat.toFixed(1)}ms</span>
-          </div>
-        </div>
-
-        {/* 4. Packet Loss & Jitter */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Loss & Jitter</span>
-            <Radio className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className={`text-2xl font-extrabold font-mono ${lossPct > 2 ? 'text-rose-400' : 'text-amber-400'}`}>
             {lossPct.toFixed(1)}%
-            <span className="text-xs text-slate-500 font-sans ml-1">loss</span>
           </div>
           <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            Jitter: {jitter.toFixed(1)}ms &bull; Recv: {snapshot?.total_packets_received || 0}
+            Jitter: {jitter.toFixed(1)} ms (RFC 3550)
           </div>
         </div>
 

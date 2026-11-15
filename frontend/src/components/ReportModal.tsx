@@ -6,7 +6,8 @@ import {
   FileText, 
   AlertTriangle, 
   Server,
-  Zap
+  Zap,
+  Globe
 } from 'lucide-react';
 import { TestReport } from '../types';
 
@@ -39,6 +40,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ report, onClose }) => 
   };
 
   const cluster: any = report.cluster_analysis || {};
+  const webAnalysis = report.website_analysis;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -126,6 +128,62 @@ export const ReportModal: React.FC<ReportModalProps> = ({ report, onClose }) => 
             </div>
           )}
         </div>
+
+        {/* Website Performance & SLA Scorecard (Visible for HTTP / Website tests) */}
+        {webAnalysis && (
+          <div className="mb-5 p-4 rounded-xl bg-[#061219] border border-emerald-600/50 font-mono text-xs">
+            <div className="text-emerald-400 font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Globe className="w-4 h-4" />
+                <span>Website Load Testing & Capacity Scorecard</span>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                webAnalysis.objective_met
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                  : 'bg-amber-950 text-amber-300 border border-amber-700'
+              }`}>
+                {webAnalysis.objective_met ? 'OBJECTIVES MET' : 'SLA DEGRADED'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center my-3">
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-slate-400 text-[10px] uppercase">Success Rate</div>
+                <div className="text-lg font-extrabold text-emerald-400 mt-0.5">
+                  {webAnalysis.successful_request_pct ?? 100}%
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-slate-400 text-[10px] uppercase">Max Sustainable RPS</div>
+                <div className="text-lg font-extrabold text-cyan-400 mt-0.5">
+                  {(webAnalysis.max_sustainable_rps || 0).toLocaleString()} RPS
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-slate-400 text-[10px] uppercase">Latency Degradation</div>
+                <div className={`text-lg font-extrabold mt-0.5 ${
+                  (webAnalysis.degradation_under_load_pct || 0) > 50 ? 'text-amber-400' : 'text-slate-200'
+                }`}>
+                  +{webAnalysis.degradation_under_load_pct ?? 0}%
+                </div>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-slate-400 text-[10px] uppercase">Gateway Timeouts</div>
+                <div className={`text-lg font-extrabold mt-0.5 ${
+                  (webAnalysis.timeouts_count || 0) > 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'
+                }`}>
+                  {webAnalysis.timeouts_count ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {webAnalysis.summary && (
+              <p className="text-[11px] text-slate-300 leading-relaxed bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80">
+                {webAnalysis.summary}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Secondary Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 font-mono">

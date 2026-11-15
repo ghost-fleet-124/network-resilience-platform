@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio, Activity, Cpu, Layers, MessageSquare, Gamepad2, Zap } from 'lucide-react';
+import { Radio, Activity, Cpu, Layers, MessageSquare, Gamepad2, Zap, Globe } from 'lucide-react';
 import { Protocol } from '../types';
 
 interface ProtocolSelectProps {
@@ -24,6 +24,15 @@ export const ProtocolSelect: React.FC<ProtocolSelectProps> = ({
   disabled
 }) => {
   const protocols: ProtocolMeta[] = [
+    {
+      id: 'HTTP_WEBSITE',
+      name: 'Website Load Test',
+      badge: 'HTTP Flood / Web',
+      tagline: 'URL Load, Redirects & POST Workloads',
+      description: 'Test websites and APIs: homepage visits, POST checkouts, search requests, keep-alive reuse, and TLS timings.',
+      icon: <Globe className="w-5 h-5 text-emerald-400" />,
+      accent: 'border-emerald-500/80 bg-emerald-950/20 text-emerald-400 ring-1 ring-emerald-500'
+    },
     {
       id: 'UDP',
       name: 'UDP Datagrams',
@@ -58,7 +67,7 @@ export const ProtocolSelect: React.FC<ProtocolSelectProps> = ({
       tagline: 'Request/Sec, Status Codes & Concurrency',
       description: 'Standard web service requests for login APIs, player inventory, and matchmaking endpoints.',
       icon: <Cpu className="w-5 h-5" />,
-      accent: 'border-emerald-500/80 bg-emerald-950/20 text-emerald-400'
+      accent: 'border-teal-500/80 bg-teal-950/20 text-teal-400'
     },
     {
       id: 'HTTPS',
@@ -108,7 +117,7 @@ export const ProtocolSelect: React.FC<ProtocolSelectProps> = ({
       </div>
 
       {/* Protocol Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3">
         {protocols.map((p) => {
           const isSelected = selectedProtocol === p.id;
           return (

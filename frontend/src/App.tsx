@@ -36,6 +36,11 @@ export function App() {
   const [httpPath, setHttpPath] = useState<string>('/');
   const [httpPayload, setHttpPayload] = useState<string>('{}');
   const [wsPath, setWsPath] = useState<string>('/');
+  const [httpHeaders, setHttpHeaders] = useState<string>('');
+  const [httpFollowRedirects, setHttpFollowRedirects] = useState<boolean>(true);
+  const [httpKeepAlive, setHttpKeepAlive] = useState<boolean>(true);
+  const [httpTimeoutSec, setHttpTimeoutSec] = useState<number>(5.0);
+  const [httpVirtualUsers, setHttpVirtualUsers] = useState<number>(50);
   const [errorThreshold, setErrorThreshold] = useState<number>(50);
   const [latencyThreshold, setLatencyThreshold] = useState<number>(5000);
 
@@ -103,7 +108,7 @@ export function App() {
     if (host === '127.0.0.1' || host === 'localhost') {
       if (p === 'UDP') setPort(9001);
       else if (p === 'TCP') setPort(9002);
-      else if (p === 'HTTP' || p === 'HTTPS') setPort(9003);
+      else if (p === 'HTTP' || p === 'HTTPS' || p === 'HTTP_WEBSITE') setPort(9003);
       else if (p === 'WEBSOCKET') setPort(9004);
       else if (p === 'GAME_UDP') setPort(9005);
     }
@@ -131,6 +136,18 @@ export function App() {
     setIsStarting(true);
     clearHistory();
 
+    const parsedHeaders: Record<string, string> = {};
+    if (httpHeaders.trim()) {
+      httpHeaders.split('\n').forEach(line => {
+        const idx = line.indexOf(':');
+        if (idx > 0) {
+          const k = line.substring(0, idx).trim();
+          const v = line.substring(idx + 1).trim();
+          if (k && v) parsedHeaders[k] = v;
+        }
+      });
+    }
+
     const payload = {
       host,
       port,
@@ -145,6 +162,11 @@ export function App() {
       http_method: httpMethod,
       http_path: httpPath,
       http_payload: httpPayload,
+      http_headers: Object.keys(parsedHeaders).length > 0 ? parsedHeaders : undefined,
+      http_follow_redirects: httpFollowRedirects,
+      http_keep_alive: httpKeepAlive,
+      http_timeout_sec: httpTimeoutSec,
+      http_virtual_users: httpVirtualUsers,
       ws_path: wsPath,
       safety_confirmation_acknowledged: safetyConfirmed,
       emergency_threshold_error_pct: errorThreshold,
@@ -328,6 +350,16 @@ export function App() {
           setHttpPath={setHttpPath}
           httpPayload={httpPayload}
           setHttpPayload={setHttpPayload}
+          httpHeaders={httpHeaders}
+          setHttpHeaders={setHttpHeaders}
+          httpFollowRedirects={httpFollowRedirects}
+          setHttpFollowRedirects={setHttpFollowRedirects}
+          httpKeepAlive={httpKeepAlive}
+          setHttpKeepAlive={setHttpKeepAlive}
+          httpTimeoutSec={httpTimeoutSec}
+          setHttpTimeoutSec={setHttpTimeoutSec}
+          httpVirtualUsers={httpVirtualUsers}
+          setHttpVirtualUsers={setHttpVirtualUsers}
           wsPath={wsPath}
           setWsPath={setWsPath}
           errorThreshold={errorThreshold}

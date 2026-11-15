@@ -110,3 +110,37 @@ async def test_mock_manager_lifecycle():
     assert mgr.is_running is True
     await mgr.stop_all()
     assert mgr.is_running is False
+
+@pytest.mark.asyncio
+async def test_website_analysis_metrics_and_scorecard():
+    collector = MetricsCollector(
+        test_id="test_website_analysis",
+        protocol=ProtocolEnum.HTTP_WEBSITE,
+        intensity=IntensityPresetEnum.LOW,
+        target_rps=80000,
+        host="127.0.0.1",
+        port=9003,
+        ramp_up_sec=1,
+        sustained_sec=5,
+        ramp_down_sec=1
+    )
+    # Simulate normal website traffic
+    for _ in range(20):
+        collector.record_request_generated(1, 1024)
+        collector.record_request_result(latency_ms=12.5, success=True, bytes_transferred=4500, status_code=200)
+    # Simulate a redirect
+    collector.record_request_generated(1, 512)
+    collector.record_request_result(latency_ms=8.0, success=True, bytes_transferred=300, status_code=302)
+    # Simulate a timeout
+    collector.record_request_generated(1, 512)
+    collector.record_request_result(latency_ms=5000.0, success=False, bytes_transferred=0, status_code=504)
+
+    collector.get_snapshot()
+    report = collector.generate_final_report()
+    assert report.website_analysis is not None
+    assert report.website_analysis["successful_request_pct"] > 90.0
+    assert report.website_analysis["timeouts_count"] == 1
+    assert "200" in report.website_analysis["status_code_breakdown"]
+    assert "302" in report.website_analysis["status_code_breakdown"]
+    assert "504" in report.website_analysis["status_code_breakdown"]
+    assert report.website_analysis["summary"] is not None

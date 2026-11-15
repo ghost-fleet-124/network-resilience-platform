@@ -110,6 +110,7 @@ MOCK_PORTS = {
     "UDP_TICK": 9001,
     "TCP_ECHO": 9002,
     "HTTP_AUTH": 9003,
+    "HTTP_WEBSITE": 9003,
     "WS_LOBBY": 9004,
     "GAME_SERVER": 9005
 }

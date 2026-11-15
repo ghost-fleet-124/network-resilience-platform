@@ -86,7 +86,9 @@ async def prometheus_metrics():
             f"resilience_generator_capacity_pct {snap_dict.get('generator_capacity_pct', 0.0)}",
             f"resilience_cluster_max_rps {snap_dict.get('cluster_max_achievable_rps', 0.0)}",
             f"resilience_generator_cpu_pct {snap_dict.get('cpu_usage_pct', 0.0)}",
-            f"resilience_generator_ram_pct {snap_dict.get('ram_usage_pct', 0.0)}"
+            f"resilience_generator_ram_pct {snap_dict.get('ram_usage_pct', 0.0)}",
+            f"resilience_timeouts_total {snap_dict.get('timeouts_count', 0)}",
+            f"resilience_avg_response_bytes {snap_dict.get('avg_response_bytes', 0.0)}"
         ])
     return "\n".join(lines) + "\n"
 

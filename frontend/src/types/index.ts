@@ -1,4 +1,4 @@
-export type Protocol = 'UDP' | 'TCP' | 'HTTP' | 'HTTPS' | 'WEBSOCKET' | 'GAME_UDP' | 'GRPC' | 'QUIC';
+export type Protocol = 'UDP' | 'TCP' | 'HTTP' | 'HTTPS' | 'HTTP_WEBSITE' | 'WEBSOCKET' | 'GAME_UDP' | 'GRPC' | 'QUIC';
 
 export type IntensityPreset = 
   | 'LOW' 
@@ -92,6 +92,8 @@ export interface MetricSnapshot {
   capacity_warning?: string;
   
   status_codes: Record<string, number>;
+  timeouts_count?: number;
+  avg_response_bytes?: number;
   active_workers: number;
   safety_circuit_status: string;
 }
@@ -113,6 +115,24 @@ export interface TestReport {
   peak_received_rps: number;
   peak_successful_rps: number;
   avg_generated_rps: number;
+  
+  successful_request_pct?: number;
+  max_sustainable_rps?: number;
+  timeouts_count?: number;
+  website_analysis?: {
+    successful_request_pct: number;
+    max_sustainable_rps: number;
+    status_code_breakdown: Record<string, number>;
+    timeouts_count: number;
+    avg_latency_ms: number;
+    p50_latency_ms: number;
+    p95_latency_ms: number;
+    p99_latency_ms: number;
+    throughput_kbps: number;
+    degradation_under_load_pct: number;
+    objective_met: boolean;
+    summary: string;
+  };
   
   total_packets_sent: number;
   total_packets_received: number;
@@ -154,4 +174,29 @@ export interface TargetVerification {
   message: string;
   challenge_token?: string;
   verification_method?: string;
+}
+
+export interface TestStartRequest {
+  host: string;
+  port: number;
+  protocol: Protocol;
+  intensity: IntensityPreset;
+  target_rps_override?: number;
+  duration_sec?: number;
+  target_url?: string;
+  http_method?: string;
+  http_path?: string;
+  http_payload?: string;
+  http_headers?: Record<string, string>;
+  http_follow_redirects?: boolean;
+  http_keep_alive?: boolean;
+  http_timeout_sec?: number;
+  http_virtual_users?: number;
+  ramp_up_sec?: number;
+  sustained_sec?: number;
+  ramp_down_sec?: number;
+  packet_size_bytes?: number;
+  game_tick_hz?: number;
+  ws_path?: string;
+  safety_confirmation_acknowledged?: boolean;
 }

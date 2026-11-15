@@ -40,6 +40,25 @@ class Orchestrator:
             if self.active_status in (TestStatusEnum.RUNNING, TestStatusEnum.INITIALIZING, TestStatusEnum.PAUSED):
                 raise ValueError("A test is already running. Stop the current test first.")
 
+            # Auto-parse target_url if provided
+            if req.target_url and req.target_url.strip():
+                from urllib.parse import urlparse
+                raw_url = req.target_url.strip()
+                if not (raw_url.startswith("http://") or raw_url.startswith("https://")):
+                    raw_url = "http://" + raw_url
+                parsed = urlparse(raw_url)
+                if parsed.hostname:
+                    req.host = parsed.hostname
+                if parsed.port:
+                    req.port = parsed.port
+                elif parsed.scheme == "https":
+                    req.port = 443
+                elif parsed.scheme == "http" and req.port not in (80, 443, 9003):
+                    if not req.port:
+                        req.port = 80
+                if parsed.path:
+                    req.http_path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
             # 1. Target Authorization Verification
             auth_res = await safety_governor.verify_target_authorization(req.host, req.port)
             if not auth_res.is_authorized:
@@ -71,7 +90,7 @@ class Orchestrator:
                 engine = UDPEngine(req, preset_cfg, target_rps, max_conns, collector)
             elif req.protocol == ProtocolEnum.TCP:
                 engine = TCPEngine(req, preset_cfg, target_rps, max_conns, collector)
-            elif req.protocol in (ProtocolEnum.HTTP, ProtocolEnum.HTTPS):
+            elif req.protocol in (ProtocolEnum.HTTP, ProtocolEnum.HTTPS, ProtocolEnum.HTTP_WEBSITE):
                 engine = HTTPEngine(req, preset_cfg, target_rps, max_conns, collector)
             elif req.protocol == ProtocolEnum.WEBSOCKET:
                 engine = WebSocketEngine(req, preset_cfg, target_rps, max_conns, collector)
