@@ -200,3 +200,48 @@ export interface TestStartRequest {
   ws_path?: string;
   safety_confirmation_acknowledged?: boolean;
 }
+
+export interface ApprovedScope {
+  scope_id: string;
+  name: string;
+  organization: string;
+  authorized_by: string;
+  target_pattern: string;
+  allowed_ports?: number[];
+  max_rps_allowed: number;
+  valid_from: number;
+  valid_until: number;
+  terms_acknowledged: boolean;
+  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+  notes?: string;
+  created_at: number;
+}
+
+export interface TargetAuthStatus {
+  loading: boolean;
+  authorized: boolean;
+  scope: string;
+  scope_name?: string;
+  authorized_by?: string;
+  expires_at?: number;
+  message: string;
+  rejection_reason?: string;
+  verification_method?: string;
+}
+
+export interface LegalClause {
+  id: string;
+  section: string;
+  summary: string;
+  content: string;
+}
+
+export interface LegalPolicy {
+  title: string;
+  summary: string;
+  effective_date: string;
+  version: string;
+  prohibition_notice?: string;
+  non_authorization_disclaimer?: string;
+  clauses: LegalClause[];
+}

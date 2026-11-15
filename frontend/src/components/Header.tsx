@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Wifi, WifiOff, History, Server, Cpu } from 'lucide-react';
+import { Activity, Wifi, WifiOff, History, Server, Cpu, Shield, Scale, Lock } from 'lucide-react';
 import { MetricSnapshot } from '../types';
 
 interface HeaderProps {
@@ -8,6 +8,9 @@ interface HeaderProps {
   onOpenHistory: () => void;
   onToggleMockModal: () => void;
   onToggleClusterModal: () => void;
+  onToggleScopeModal: () => void;
+  onToggleTermsModal: () => void;
+  onTogglePrivacyModal: () => void;
   mockRunning: boolean;
 }
 
@@ -17,6 +20,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHistory,
   onToggleMockModal,
   onToggleClusterModal,
+  onToggleScopeModal,
+  onToggleTermsModal,
+  onTogglePrivacyModal,
   mockRunning,
 }) => {
   return (
@@ -44,8 +50,38 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Live System Diagnostics & Quick Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           
+          {/* Scope Manager Trigger */}
+          <button
+            onClick={onToggleScopeModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/50 border border-cyan-800 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
+            title="Inspect and register authorized target scopes (wildcards, domains, subnets)"
+          >
+            <Shield className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Scopes</span>
+          </button>
+
+          {/* Acceptable Use Policy / Terms */}
+          <button
+            onClick={onToggleTermsModal}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-mono transition-colors cursor-pointer"
+            title="View Acceptable Use Policy & Rules of Engagement"
+          >
+            <Scale className="w-3.5 h-3.5 text-slate-400" />
+            <span>AUP / Terms</span>
+          </button>
+
+          {/* Privacy Policy */}
+          <button
+            onClick={onTogglePrivacyModal}
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-mono transition-colors cursor-pointer"
+            title="View Privacy Policy & Data Retention Schedule"
+          >
+            <Lock className="w-3.5 h-3.5 text-slate-400" />
+            <span>Privacy</span>
+          </button>
+
           {/* Cluster Manager Trigger */}
           <button
             onClick={onToggleClusterModal}
@@ -53,13 +89,13 @@ export const Header: React.FC<HeaderProps> = ({
             title="Inspect distributed generator cluster nodes & benchmark local machine limit"
           >
             <Cpu className="w-3.5 h-3.5 text-purple-400" />
-            <span>Cluster Nodes</span>
+            <span className="hidden sm:inline">Cluster</span>
           </button>
 
           {/* Mock Server Environment Status */}
           <button
             onClick={onToggleMockModal}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
               mockRunning 
                 ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-400 hover:bg-emerald-900/40' 
                 : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800'
@@ -67,18 +103,8 @@ export const Header: React.FC<HeaderProps> = ({
             title="Local sandbox targets for instant zero-setup testing"
           >
             <Server className={`w-3.5 h-3.5 ${mockRunning ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-            <span className="hidden sm:inline">Mock Sandbox: {mockRunning ? 'ONLINE' : 'OFFLINE'}</span>
+            <span className="hidden xl:inline">Mock Sandbox: {mockRunning ? 'ONLINE' : 'OFFLINE'}</span>
           </button>
-
-          {/* Generator Host Health */}
-          {snapshot && (
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-cyber-border text-xs font-mono">
-              <span className="text-slate-400">HOST:</span>
-              <span className="text-cyan-400">CPU {snapshot.cpu_usage_pct.toFixed(0)}%</span>
-              <span className="text-slate-600">|</span>
-              <span className="text-purple-400">RAM {snapshot.ram_usage_pct.toFixed(0)}%</span>
-            </div>
-          )}
 
           {/* WebSocket Status */}
           <div 
@@ -96,6 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenHistory}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-medium transition-colors cursor-pointer"
+            title="Inspect historical test runs & audit events"
           >
             <History className="w-3.5 h-3.5 text-cyan-400" />
             <span>Audit</span>

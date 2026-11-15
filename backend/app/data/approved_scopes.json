@@ -1,0 +1,69 @@
+[
+  {
+    "scope_id": "scope_apex_staging",
+    "name": "Apex Championship Staging & Internal Services",
+    "organization": "Apex Interactive Corp",
+    "authorized_by": "ciso-security@apexgaming.net",
+    "target_pattern": "*.staging.apexgaming.net",
+    "allowed_ports": [
+      80,
+      443,
+      8000,
+      8080,
+      9000,
+      9001,
+      9002,
+      9003,
+      9004,
+      9005
+    ],
+    "max_rps_allowed": 5000000,
+    "valid_from": 1794686669.0391634,
+    "valid_until": 1810325069.0391634,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": "Authorized scope covering all staging tournament nodes and internal microservices.",
+    "created_at": 1794773069.03919
+  },
+  {
+    "scope_id": "scope_tournament_subnet",
+    "name": "Dedicated Tournament Ingress Subnet",
+    "organization": "Apex Global Infrastructure",
+    "authorized_by": "infra-lead@apexgaming.net",
+    "target_pattern": "198.51.100.0/24",
+    "allowed_ports": [
+      80,
+      443,
+      9001,
+      9002,
+      9003,
+      9004,
+      9005
+    ],
+    "max_rps_allowed": 3000000,
+    "valid_from": 1794686669.0391634,
+    "valid_until": 1802549069.0391634,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": "Dedicated bare-metal tournament game server ingress pool.",
+    "created_at": 1794773069.0391986
+  },
+  {
+    "scope_id": "scope_legacy_game_2025",
+    "name": "Legacy Tournament 2025 Test Bed (Expired)",
+    "organization": "Legacy Tournament Ops",
+    "authorized_by": "ops-2025@apexgaming.net",
+    "target_pattern": "legacy.tournament-2025.com",
+    "allowed_ports": [
+      80,
+      443
+    ],
+    "max_rps_allowed": 100000,
+    "valid_from": 1784405069.0391634,
+    "valid_until": 1792181069.0391634,
+    "terms_acknowledged": true,
+    "status": "EXPIRED",
+    "notes": "Historical testing scope for concluded 2025 tournament. Permission expired.",
+    "created_at": 1794773069.0392022
+  }
+]

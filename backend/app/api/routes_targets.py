@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.models import TargetVerificationRequest, TargetVerificationResponse
+from typing import List
+from app.models import (
+    TargetVerificationRequest,
+    TargetVerificationResponse,
+    ApprovedScope,
+    RegisterScopeRequest
+)
 from app.config import PRESET_CONFIGS, MOCK_PORTS
 from app.core.safety_governor import safety_governor
 from app.mock_targets.mock_manager import mock_manager
@@ -11,6 +17,26 @@ router = APIRouter(prefix="/api/targets", tags=["targets"])
 @router.post("/verify", response_model=TargetVerificationResponse)
 async def verify_target(req: TargetVerificationRequest):
     return await safety_governor.verify_target_authorization(req.host, req.port, req.challenge_token)
+
+@router.get("/scopes", response_model=List[ApprovedScope])
+async def list_authorized_scopes():
+    return safety_governor.get_all_scopes()
+
+@router.post("/scopes", response_model=ApprovedScope)
+async def register_authorized_scope(req: RegisterScopeRequest):
+    if not req.terms_acknowledged:
+        raise HTTPException(
+            status_code=400,
+            detail="Scope registration requires explicit confirmation of the Acceptable Use Policy."
+        )
+    return safety_governor.register_scope(req)
+
+@router.delete("/scopes/{scope_id}")
+async def revoke_authorized_scope(scope_id: str):
+    revoked = safety_governor.revoke_scope(scope_id)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="Scope not found")
+    return {"status": "REVOKED", "scope_id": scope_id}
 
 @router.get("/presets")
 async def get_presets():

@@ -13,6 +13,9 @@ import { HistoryDrawer } from './components/HistoryDrawer';
 import { MockServerControl } from './components/MockServerControl';
 import { ClusterManagerModal } from './components/ClusterManagerModal';
 import { HighIntensityConfirmationModal } from './components/HighIntensityConfirmationModal';
+import { ScopeManagerModal } from './components/ScopeManagerModal';
+import { TermsModal } from './components/TermsModal';
+import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
 import { useLiveTelemetry } from './hooks/useLiveTelemetry';
 import { Protocol, IntensityPreset, TestReport, PresetDetails, TestStatus } from './types';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
@@ -60,6 +63,9 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
   const [mockModalOpen, setMockModalOpen] = useState<boolean>(false);
   const [clusterModalOpen, setClusterModalOpen] = useState<boolean>(false);
+  const [scopeModalOpen, setScopeModalOpen] = useState<boolean>(false);
+  const [termsModalOpen, setTermsModalOpen] = useState<boolean>(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState<boolean>(false);
   const [confirmHighIntensityOpen, setConfirmHighIntensityOpen] = useState<boolean>(false);
   const [activeReport, setActiveReport] = useState<TestReport | null>(null);
 
@@ -294,6 +300,9 @@ export function App() {
         onOpenHistory={() => setHistoryOpen(true)}
         onToggleMockModal={() => setMockModalOpen(true)}
         onToggleClusterModal={() => setClusterModalOpen(true)}
+        onToggleScopeModal={() => setScopeModalOpen(true)}
+        onToggleTermsModal={() => setTermsModalOpen(true)}
+        onTogglePrivacyModal={() => setPrivacyModalOpen(true)}
         mockRunning={mockRunning}
       />
 
@@ -337,6 +346,7 @@ export function App() {
           protocol={protocol}
           setProtocol={handleSelectProtocol}
           isTesting={isTesting}
+          onOpenScopeModal={() => setScopeModalOpen(true)}
         />
 
         {/* Step 2: Protocol Selection */}
@@ -423,10 +433,56 @@ export function App() {
 
       {/* Footer */}
       <footer className="border-t border-cyber-border py-4 px-6 text-center text-xs text-slate-500 font-mono">
-        Antigravity Enterprise Load Testing Platform &bull; Scalable up to 5,000,000 Requested RPS &bull; 2026
+        <div className="flex flex-wrap items-center justify-center gap-4 mb-1">
+          <button
+            onClick={() => setTermsModalOpen(true)}
+            className="text-slate-400 hover:text-cyan-300 underline transition-colors cursor-pointer"
+          >
+            Acceptable Use Policy & Legal Terms
+          </button>
+          <span>&bull;</span>
+          <button
+            onClick={() => setPrivacyModalOpen(true)}
+            className="text-slate-400 hover:text-purple-300 underline transition-colors cursor-pointer"
+          >
+            Privacy Policy & Data Retention
+          </button>
+          <span>&bull;</span>
+          <button
+            onClick={() => setScopeModalOpen(true)}
+            className="text-slate-400 hover:text-emerald-300 underline transition-colors cursor-pointer"
+          >
+            Authorized Scope Registry
+          </button>
+        </div>
+        <div>
+          Antigravity Enterprise Resilience Platform &bull; Scalable up to 5,000,000 Requested RPS &bull; 2026
+        </div>
       </footer>
 
       {/* Modals & Drawers */}
+      <ScopeManagerModal
+        isOpen={scopeModalOpen}
+        onClose={() => setScopeModalOpen(false)}
+        onApplyTarget={(val) => {
+          if (protocol === 'HTTP_WEBSITE') {
+            setTargetUrl(val.startsWith('http') ? val : `https://${val}/`);
+          } else {
+            setHost(val.replace('https://', '').replace('http://', '').split('/')[0]);
+          }
+        }}
+      />
+
+      <TermsModal
+        isOpen={termsModalOpen}
+        onClose={() => setTermsModalOpen(false)}
+      />
+
+      <PrivacyPolicyModal
+        isOpen={privacyModalOpen}
+        onClose={() => setPrivacyModalOpen(false)}
+      />
+
       <ReportModal
         report={activeReport}
         onClose={() => setActiveReport(null)}

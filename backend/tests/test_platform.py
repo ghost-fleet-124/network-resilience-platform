@@ -144,3 +144,114 @@ async def test_website_analysis_metrics_and_scorecard():
     assert "302" in report.website_analysis["status_code_breakdown"]
     assert "504" in report.website_analysis["status_code_breakdown"]
     assert report.website_analysis["summary"] is not None
+
+@pytest.mark.asyncio
+async def test_approved_scope_authorization_without_challenge_files():
+    # 1. Wildcard domain match (*.staging.apexgaming.net)
+    res = await safety_governor.verify_target_authorization("api.staging.apexgaming.net", 443)
+    assert res.is_authorized is True
+    assert "scope_apex_staging" in res.scope
+    assert res.scope_name == "Apex Championship Staging & Internal Services"
+    assert "ciso-security@apexgaming.net" in res.message
+    # Proves no challenge token or file was required
+    assert "challenge.txt" not in res.message
+
+    # 2. CIDR subnet match (198.51.100.0/24)
+    res_cidr = await safety_governor.verify_target_authorization("198.51.100.42", 9001)
+    assert res_cidr.is_authorized is True
+    assert "scope_tournament_subnet" in res_cidr.scope
+    assert res_cidr.verification_method == "ORGANIZATION_SCOPE"
+
+    # 3. Localhost and RFC1918 private network are always authorized
+    res_local = await safety_governor.verify_target_authorization("127.0.0.1", 9003)
+    assert res_local.is_authorized is True
+    assert res_local.scope == "LOCAL_SANDBOX"
+
+    res_priv = await safety_governor.verify_target_authorization("10.0.4.15", 8080)
+    assert res_priv.is_authorized is True
+    assert res_priv.scope == "PRIVATE_NETWORK"
+
+@pytest.mark.asyncio
+async def test_unauthorized_target_rejected_with_clear_explanation():
+    # Unauthorized third-party target must be rejected
+    res = await safety_governor.verify_target_authorization("unauthorized-public-target.com", 443)
+    assert res.is_authorized is False
+    assert res.scope == "UNAUTHORIZED_EXTERNAL_TARGET"
+    assert "not covered by any active authorized testing scope" in res.message
+    assert res.rejection_reason is not None
+    assert "approved scopes" in res.rejection_reason.lower()
+    # No mention of .well-known/resilience-challenge.txt
+    assert "challenge.txt" not in res.message
+    assert "challenge.txt" not in (res.rejection_reason or "")
+
+@pytest.mark.asyncio
+async def test_expired_scope_rejected():
+    # Scope 'scope_legacy_game_2025' expired in the past
+    res = await safety_governor.verify_target_authorization("legacy.tournament-2025.com", 443)
+    assert res.is_authorized is False
+    assert "EXPIRED" in res.message
+    assert res.rejection_reason is not None
+    assert "expired" in res.rejection_reason.lower()
+
+@pytest.mark.asyncio
+async def test_terms_and_acceptable_use_policy_specifications():
+    from app.core.legal_governance import ACCEPTABLE_USE_POLICY
+    
+    # 1. Purpose and Authorized Scope (Lawful resilience/capacity only)
+    c1 = next(c for c in ACCEPTABLE_USE_POLICY["clauses"] if c["id"] == "AUP-01")
+    assert "lawful" in c1["summary"].lower() or "capacity" in c1["summary"].lower()
+
+    # 2. Ownership and Explicit Permission Mandatory
+    c2 = next(c for c in ACCEPTABLE_USE_POLICY["clauses"] if c["id"] == "AUP-02")
+    assert "ownership" in c2["summary"].lower() or "written authorization" in c2["summary"].lower()
+
+    # 3. Operator Responsibility for Approvals (ISPs, clouds)
+    c3 = next(c for c in ACCEPTABLE_USE_POLICY["clauses"] if c["id"] == "AUP-03")
+    assert "approvals" in c3["summary"].lower() or "upstream" in c3["summary"].lower()
+
+    # 4. Strictly Prohibited Activities (DoS, DDoS, unauthorized disruption)
+    c4 = next(c for c in ACCEPTABLE_USE_POLICY["clauses"] if c["id"] == "AUP-04")
+    assert "denial-of-service" in c4["summary"].lower() or "forbidden" in c4["summary"].lower()
+
+    # 5. Enforcement, Suspension, and Termination
+    c5 = next(c for c in ACCEPTABLE_USE_POLICY["clauses"] if c["id"] == "AUP-05")
+    assert "suspension" in c5["summary"].lower() or "violations" in c5["summary"].lower()
+
+    # Explicit disclaimer: Accepting T&C alone does NOT grant permission to test an external target
+    assert "does not by itself grant technical permission to test an external target" in ACCEPTABLE_USE_POLICY["non_authorization_disclaimer"].lower()
+
+@pytest.mark.asyncio
+async def test_privacy_policy_and_data_self_service():
+    from app.core.legal_governance import PRIVACY_POLICY
+    from app.core.storage import storage
+    
+    # Verify 5 privacy clauses
+    clause_ids = [c["id"] for c in PRIVACY_POLICY["clauses"]]
+    assert "PRIV-01" in clause_ids # Metadata collected
+    assert "PRIV-02" in clause_ids # Storage & encryption
+    assert "PRIV-03" in clause_ids # Retention schedule (90-day / 365-day)
+    assert "PRIV-04" in clause_ids # Export & deletion rights
+    assert "PRIV-05" in clause_ids # Protection of authorization records
+
+    # Test self-service export
+    exported = storage.export_all_records()
+    assert "export_timestamp" in exported
+    assert "reports" in exported
+    assert "audit_events" in exported
+
+    # Test self-service purge
+    purge_res = storage.purge_eligible_data()
+    assert purge_res["status"] == "COMPLETED"
+    assert "purged_reports_count" in purge_res
+
+@pytest.mark.asyncio
+async def test_all_tests_recorded_with_audit_trail():
+    from app.core.storage import storage
+    
+    # Check that audit log exists and records action, test_id, timestamp, details
+    events = storage.get_audit_events(limit=10)
+    assert len(events) > 0
+    latest = events[0]
+    assert "action" in latest
+    assert "timestamp" in latest
+    assert "details" in latest

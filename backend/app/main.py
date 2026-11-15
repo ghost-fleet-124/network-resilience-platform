@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.routes_targets import router as targets_router
 from app.api.routes_tests import router as tests_router
 from app.api.routes_reports import router as reports_router
+from app.api.routes_legal import router as legal_router
 from app.core.websocket_hub import websocket_hub
 from app.core.orchestrator import orchestrator
 from app.mock_targets.mock_manager import mock_manager
@@ -42,6 +43,7 @@ app.add_middleware(
 app.include_router(targets_router)
 app.include_router(tests_router)
 app.include_router(reports_router)
+app.include_router(legal_router)
 
 @app.websocket("/ws/telemetry")
 async def websocket_telemetry_endpoint(websocket: WebSocket):

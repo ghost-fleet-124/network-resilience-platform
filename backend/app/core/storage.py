@@ -58,4 +58,46 @@ class Storage:
         except Exception as e:
             print(f"[Storage] Error writing audit log: {e}")
 
+    def get_audit_events(self, limit: int = 100) -> List[dict]:
+        events = []
+        if os.path.exists(AUDIT_LOG_FILE):
+            try:
+                with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            events.append(json.loads(line))
+            except Exception as e:
+                print(f"[Storage] Error reading audit log: {e}")
+        return events[-limit:][::-1] # newest first
+
+    def export_all_records(self) -> dict:
+        return {
+            "export_timestamp": time.time(),
+            "export_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "total_reports": len(self._reports_cache),
+            "reports": [r.model_dump() for r in self._reports_cache],
+            "audit_events": self.get_audit_events(limit=500)
+        }
+
+    def purge_eligible_data(self) -> dict:
+        deleted_reports_count = len(self._reports_cache)
+        self._reports_cache = []
+        try:
+            with open(REPORTS_FILE, "w", encoding="utf-8") as f:
+                json.dump([], f)
+        except Exception as e:
+            print(f"[Storage] Error clearing reports file: {e}")
+        
+        self.log_audit_event("PRIVACY_PURGE_REQUEST", "system", {
+            "action": "PURGE_REPORTS_REQUESTED",
+            "purged_reports_count": deleted_reports_count
+        })
+
+        return {
+            "status": "COMPLETED",
+            "purged_reports_count": deleted_reports_count,
+            "message": "All historical test reports and telemetry data successfully purged in accordance with Privacy Policy."
+        }
+
 storage = Storage()

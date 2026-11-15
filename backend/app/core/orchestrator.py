@@ -62,7 +62,10 @@ class Orchestrator:
             # 1. Target Authorization Verification
             auth_res = await safety_governor.verify_target_authorization(req.host, req.port)
             if not auth_res.is_authorized:
-                raise PermissionError(f"Target authorization failed: {auth_res.message}")
+                err_msg = f"Target authorization failed: {auth_res.message}"
+                if auth_res.rejection_reason:
+                    err_msg += f" Reason: {auth_res.rejection_reason}"
+                raise PermissionError(err_msg)
 
             # 2. Enforce Traffic Budget and Numerical RPS targets
             preset_cfg, target_rps, max_conns = safety_governor.enforce_traffic_budget(req)
@@ -103,18 +106,22 @@ class Orchestrator:
 
             self.active_engine = engine
 
-            # 5. Audit Logging
+            # 5. Audit Logging with full target, timestamp, operator, workload and scope metadata
             storage.log_audit_event(
                 action="START_TEST",
                 test_id=test_id,
                 details={
                     "target": f"{req.host}:{req.port}",
+                    "target_url": req.target_url,
                     "protocol": req.protocol.value,
                     "intensity": req.intensity.value,
                     "target_rps": target_rps,
                     "max_conns": max_conns,
                     "duration_sec": req.duration_sec,
                     "operator_ip": operator_ip,
+                    "authorization_scope": auth_res.scope,
+                    "scope_name": auth_res.scope_name,
+                    "authorized_by": auth_res.authorized_by,
                     "cluster_nodes": len(cluster_manager.get_all_nodes())
                 }
             )

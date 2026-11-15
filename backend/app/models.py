@@ -89,14 +89,49 @@ class TargetVerificationRequest(BaseModel):
             data["port"] = 80
         return data
 
+class ScopeStatusEnum(str, Enum):
+    ACTIVE = "ACTIVE"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+
+class ApprovedScope(BaseModel):
+    scope_id: str
+    name: str
+    organization: str
+    authorized_by: str
+    target_pattern: str # Domain wildcard, exact domain, CIDR, or IP
+    allowed_ports: Optional[List[int]] = None
+    max_rps_allowed: int = 1000000
+    valid_from: float = Field(default_factory=time.time)
+    valid_until: float
+    terms_acknowledged: bool = True
+    status: ScopeStatusEnum = ScopeStatusEnum.ACTIVE
+    notes: Optional[str] = None
+    created_at: float = Field(default_factory=time.time)
+
+class RegisterScopeRequest(BaseModel):
+    name: str
+    organization: str
+    authorized_by: str
+    target_pattern: str
+    allowed_ports: Optional[List[int]] = None
+    valid_days: int = 30
+    max_rps_allowed: int = 1000000
+    notes: Optional[str] = None
+    terms_acknowledged: bool = True
+
 class TargetVerificationResponse(BaseModel):
     host: str
     port: int
     is_authorized: bool
     scope: str
     message: str
-    challenge_token: Optional[str] = None
+    scope_name: Optional[str] = None
+    authorized_by: Optional[str] = None
+    expires_at: Optional[float] = None
+    rejection_reason: Optional[str] = None
     verification_method: Optional[str] = None
+    challenge_token: Optional[str] = None
 
 class TestStartRequest(BaseModel):
     host: Optional[str] = None

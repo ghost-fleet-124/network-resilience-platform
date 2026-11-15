@@ -145,7 +145,68 @@ def test_api():
         assert "resilience_cluster_max_rps" in metrics_text
         log("Prometheus exporter verified with explicit numerical RPS metrics.")
 
-    log("ALL ENTERPRISE RPS REQUIREMENTS VERIFIED SUCCESSFULLY!")
+    log("Verifying Simplified External Target Scope Authorization...")
+    # 1. Target covered by approved wildcard scope (*.staging.apexgaming.net)
+    scope_verify_req = urllib.request.Request(
+        f"{base_url}/api/targets/verify",
+        data=json.dumps({"host": "api.staging.apexgaming.net", "port": 443, "protocol": "HTTPS"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(scope_verify_req) as resp:
+        scope_res = json.loads(resp.read().decode())
+        assert scope_res["is_authorized"] is True
+        assert "scope_apex_staging" in scope_res["scope"]
+        assert "challenge.txt" not in scope_res["message"]
+        log(f"  ✓ Approved Scope Authorized: [{scope_res['scope']}] {scope_res['scope_name']} (No challenge file required)")
+
+    # 2. Unauthorized target is rejected with clear explanation
+    unauth_verify_req = urllib.request.Request(
+        f"{base_url}/api/targets/verify",
+        data=json.dumps({"host": "unauthorized-public-system.com", "port": 443, "protocol": "HTTPS"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(unauth_verify_req) as resp:
+        unauth_res = json.loads(resp.read().decode())
+        assert unauth_res["is_authorized"] is False
+        assert "challenge.txt" not in unauth_res["message"]
+        assert "challenge.txt" not in (unauth_res.get("rejection_reason") or "")
+        log(f"  ✓ Unauthorized Target Blocked: [{unauth_res['scope']}] {unauth_res['message']} (Reason: {unauth_res.get('rejection_reason')})")
+
+    # 3. Expired scope is rejected
+    expired_verify_req = urllib.request.Request(
+        f"{base_url}/api/targets/verify",
+        data=json.dumps({"host": "legacy.tournament-2025.com", "port": 443, "protocol": "HTTPS"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(expired_verify_req) as resp:
+        expired_res = json.loads(resp.read().decode())
+        assert expired_res["is_authorized"] is False
+        assert "EXPIRED" in expired_res["message"]
+        log(f"  ✓ Expired Scope Blocked: [{expired_res['scope']}] {expired_res['message']}")
+
+    log("Verifying Acceptable Use Policy & Privacy Policy Endpoints...")
+    # Terms
+    with urllib.request.urlopen(f"{base_url}/api/legal/terms") as resp:
+        terms_data = json.loads(resp.read().decode())
+        assert len(terms_data["clauses"]) == 5
+        assert "lawful" in terms_data["summary"].lower()
+        log(f"  ✓ Terms & Acceptable Use Policy verified ({len(terms_data['clauses'])} clauses, version {terms_data['version']})")
+
+    # Privacy
+    with urllib.request.urlopen(f"{base_url}/api/legal/privacy") as resp:
+        priv_data = json.loads(resp.read().decode())
+        assert len(priv_data["clauses"]) == 5
+        log(f"  ✓ Privacy Policy verified ({len(priv_data['clauses'])} clauses, version {priv_data['version']})")
+
+    # Privacy self-service export
+    export_req = urllib.request.Request(f"{base_url}/api/legal/privacy/export", data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(export_req) as resp:
+        export_data = json.loads(resp.read().decode())
+        assert "reports" in export_data
+        assert "audit_events" in export_data
+        log(f"  ✓ Self-service privacy export verified ({len(export_data['audit_events'])} audit events exported)")
+
+    log("ALL ENTERPRISE RPS, TARGET AUTHORIZATION, AND LEGAL REQUIREMENTS VERIFIED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     test_api()
