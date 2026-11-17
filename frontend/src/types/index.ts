@@ -59,6 +59,12 @@ export interface MetricSnapshot {
   successful_rps: number;
   failed_rps: number;
   
+  // Explicit client vs server request tracking
+  requests_scheduled?: number;
+  requests_dispatched?: number;
+  requests_completed?: number;
+  connection_errors?: number;
+  
   req_per_sec: number;
   packets_per_sec: number;
   
@@ -138,6 +144,10 @@ export interface TestReport {
   total_packets_received: number;
   packet_loss_pct: number;
   total_requests: number;
+  requests_scheduled?: number;
+  requests_dispatched?: number;
+  requests_completed?: number;
+  connection_errors?: number;
   successful_operations: number;
   failed_operations: number;
   peak_throughput_kbps: number;
@@ -186,6 +196,9 @@ export interface TestStartRequest {
   http_method?: string;
   http_path?: string;
   http_payload?: string;
+  http_body_type?: 'json' | 'form' | 'raw';
+  http_content_type?: string;
+  http_query_params?: Record<string, string>;
   http_headers?: Record<string, string>;
   http_follow_redirects?: boolean;
   http_keep_alive?: boolean;

@@ -26,15 +26,26 @@ class HTTPEngine(BaseEngine):
             host = parsed.hostname or "127.0.0.1"
             port = parsed.port or (443 if scheme == "https" else 80)
             path = parsed.path or "/"
-            if parsed.query:
-                path += f"?{parsed.query}"
-            return f"{scheme}://{host}:{port}{path}"
+            query = parsed.query or ""
         else:
             scheme = "https" if self.req.protocol in (ProtocolEnum.HTTPS,) else "http"
             path = (self.req.http_path or "/").strip()
             if not path.startswith("/"):
                 path = "/" + path
-            return f"{scheme}://{self.req.host}:{self.req.port}{path}"
+            host = self.req.host
+            port = self.req.port
+            query = ""
+
+        # Merge additional query parameters if provided
+        if getattr(self.req, "http_query_params", None):
+            from urllib.parse import urlencode, parse_qsl
+            existing_pairs = parse_qsl(query, keep_blank_values=True) if query else []
+            new_dict = dict(existing_pairs)
+            new_dict.update(self.req.http_query_params)
+            query = urlencode(new_dict)
+
+        full_path = f"{path}?{query}" if query else path
+        return f"{scheme}://{host}:{port}{full_path}"
 
     async def _worker_loop(
         self,
@@ -109,8 +120,9 @@ class HTTPEngine(BaseEngine):
             except asyncio.TimeoutError:
                 latency_ms = (time.perf_counter() - t_start) * 1000.0
                 self.collector.record_request_result(latency_ms, False, 0, 504)
-            except aiohttp.ClientConnectorError:
+            except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError):
                 latency_ms = (time.perf_counter() - t_start) * 1000.0
+                self.collector.record_connection_error()
                 self.collector.record_request_result(latency_ms, False, 0, 502)
             except aiohttp.ClientResponseError as ce:
                 latency_ms = (time.perf_counter() - t_start) * 1000.0
@@ -141,12 +153,32 @@ class HTTPEngine(BaseEngine):
         if self.req.http_headers:
             headers.update(self.req.http_headers)
 
-        # Prepare payload
+        # Prepare payload for POST/PUT/PATCH
         payload_bytes = b""
-        if self.req.http_payload:
-            payload_bytes = self.req.http_payload.encode("utf-8")
+        body_type = getattr(self.req, "http_body_type", "json") or "json"
+        
+        if self.req.http_payload and self.req.http_payload.strip():
+            raw_payload = self.req.http_payload.strip()
+            payload_bytes = raw_payload.encode("utf-8")
             if "Content-Type" not in headers:
-                headers["Content-Type"] = "application/json" if self.req.http_payload.strip().startswith("{") else "text/plain"
+                if body_type == "json" or raw_payload.startswith("{") or raw_payload.startswith("["):
+                    headers["Content-Type"] = "application/json"
+                elif body_type == "form" or ("=" in raw_payload and "\n" not in raw_payload):
+                    headers["Content-Type"] = "application/x-www-form-urlencoded"
+                else:
+                    headers["Content-Type"] = "text/plain"
+        elif method in ("POST", "PUT"):
+            if body_type == "form":
+                payload_bytes = b""
+                if "Content-Type" not in headers:
+                    headers["Content-Type"] = "application/x-www-form-urlencoded"
+            else:
+                payload_bytes = b"{}"
+                if "Content-Type" not in headers:
+                    headers["Content-Type"] = "application/json"
+
+        if getattr(self.req, "http_content_type", None):
+            headers["Content-Type"] = self.req.http_content_type
 
         # Concurrency & pacing configuration
         conns = self.req.http_virtual_users or max(1, min(self.max_conns, 500))

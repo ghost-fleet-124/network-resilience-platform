@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, Wifi, WifiOff, History, Server, Cpu, Shield, Scale, Lock } from 'lucide-react';
+import { Activity, Radio, History, Shield, Scale, Lock, Cpu, Server } from 'lucide-react';
 import { MetricSnapshot } from '../types';
 
 interface HeaderProps {
@@ -12,6 +12,8 @@ interface HeaderProps {
   onToggleTermsModal: () => void;
   onTogglePrivacyModal: () => void;
   mockRunning: boolean;
+  activeView?: 'console' | 'scopes' | 'reports' | 'cluster';
+  onChangeView?: (view: 'console' | 'scopes' | 'reports' | 'cluster') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,112 +26,148 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTermsModal,
   onTogglePrivacyModal,
   mockRunning,
+  activeView = 'console',
+  onChangeView
 }) => {
   return (
-    <header className="border-b border-cyber-border bg-[#0d1322]/80 backdrop-blur-md sticky top-0 z-40 px-6 py-3.5">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-40 px-4 sm:px-6 py-2.5">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         
-        {/* Brand & Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.25)]">
-            <Activity className="w-5 h-5 text-cyan-400 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-base tracking-wider bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-300 bg-clip-text text-transparent">
-                ANTIGRAVITY // RESILIENCE OPS
-              </span>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-400 font-semibold tracking-wider">
-                Enterprise 5M RPS
-              </span>
+        {/* Brand & Left Navigation */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <Activity className="w-4 h-4" />
             </div>
-            <p className="text-xs text-slate-400">
-              Distributed Network Load Testing & High-Capacity Protocol Resilience Engine
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm tracking-tight text-white">
+                  ResilienceOps
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">
+                  Enterprise Platform
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                High-Volume Resilience & Load Verification Platform
+              </p>
+            </div>
           </div>
+
+          {/* Navigation Tabs if onChangeView is passed */}
+          {onChangeView && (
+            <nav className="hidden md:flex items-center space-x-1 pl-4 border-l border-slate-800">
+              <button
+                onClick={() => onChangeView('console')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  activeView === 'console'
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                Live Console
+              </button>
+              <button
+                onClick={() => onToggleScopeModal()}
+                className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+              >
+                Target Scopes
+              </button>
+              <button
+                onClick={() => onOpenHistory()}
+                className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+              >
+                Test Reports
+              </button>
+              <button
+                onClick={() => onToggleClusterModal()}
+                className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+              >
+                Cluster Nodes
+              </button>
+            </nav>
+          )}
         </div>
 
-        {/* Live System Diagnostics & Quick Actions */}
+        {/* Right Action & Status Pills */}
         <div className="flex items-center gap-2 flex-wrap">
-          
-          {/* Scope Manager Trigger */}
+          {/* Quick Scope Manager */}
           <button
             onClick={onToggleScopeModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/50 border border-cyan-800 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
-            title="Inspect and register authorized target scopes (wildcards, domains, subnets)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+            title="Manage Authorized Organizational Scopes"
           >
-            <Shield className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">Scopes</span>
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Approved Scopes</span>
           </button>
 
-          {/* Acceptable Use Policy / Terms */}
-          <button
-            onClick={onToggleTermsModal}
-            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-mono transition-colors cursor-pointer"
-            title="View Acceptable Use Policy & Rules of Engagement"
-          >
-            <Scale className="w-3.5 h-3.5 text-slate-400" />
-            <span>AUP / Terms</span>
-          </button>
-
-          {/* Privacy Policy */}
-          <button
-            onClick={onTogglePrivacyModal}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-mono transition-colors cursor-pointer"
-            title="View Privacy Policy & Data Retention Schedule"
-          >
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Privacy</span>
-          </button>
-
-          {/* Cluster Manager Trigger */}
+          {/* Cluster Capacity pill */}
           <button
             onClick={onToggleClusterModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-950/40 hover:bg-purple-900/40 border border-purple-800/80 text-purple-300 text-xs font-mono transition-colors cursor-pointer"
-            title="Inspect distributed generator cluster nodes & benchmark local machine limit"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+            title="Cluster Hardware Capacity"
           >
-            <Cpu className="w-3.5 h-3.5 text-purple-400" />
+            <Cpu className="w-3.5 h-3.5 text-slate-400" />
             <span className="hidden sm:inline">Cluster</span>
+          </button>
+
+          {/* Test History Trigger */}
+          <button
+            onClick={onOpenHistory}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+            title="Inspect historical test runs & SLA reports"
+          >
+            <History className="w-3.5 h-3.5 text-slate-400" />
+            <span className="hidden sm:inline">History</span>
           </button>
 
           {/* Mock Server Environment Status */}
           <button
             onClick={onToggleMockModal}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
               mockRunning 
-                ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-400 hover:bg-emerald-900/40' 
-                : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800'
+                ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/40' 
+                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:bg-slate-800'
             }`}
-            title="Local sandbox targets for instant zero-setup testing"
+            title="Local Sandbox / Staging Environment"
           >
-            <Server className={`w-3.5 h-3.5 ${mockRunning ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
-            <span className="hidden xl:inline">Mock Sandbox: {mockRunning ? 'ONLINE' : 'OFFLINE'}</span>
+            <Server className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Mock Lab:</span>
+            <span>{mockRunning ? 'Online' : 'Stopped'}</span>
           </button>
 
-          {/* WebSocket Status */}
-          <div 
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono ${
-              isConnected 
-                ? 'bg-cyan-950/40 border-cyan-800 text-cyan-400' 
-                : 'bg-rose-950/40 border-rose-800 text-rose-400'
+          {/* Telemetry Connection Status */}
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono ${
+              isConnected
+                ? 'bg-slate-800/80 border-slate-700 text-emerald-400'
+                : 'bg-rose-950/30 border-rose-900/50 text-rose-400'
             }`}
+            title={isConnected ? 'Live WebSocket telemetry active' : 'Telemetry disconnected'}
           >
-            {isConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-rose-500'}`} />
+            <span className="text-[11px] font-sans hidden sm:inline">{isConnected ? 'Telemetry' : 'Disconnected'}</span>
           </div>
 
-          {/* Test History Button */}
+          {/* Legal / Policy Links Dropdown / Modals */}
           <button
-            onClick={onOpenHistory}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyber-border text-slate-300 text-xs font-medium transition-colors cursor-pointer"
-            title="Inspect historical test runs & audit events"
+            onClick={onToggleTermsModal}
+            className="hidden xl:flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            title="Acceptable Use Policy"
           >
-            <History className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Audit</span>
+            <Scale className="w-3.5 h-3.5" />
+            <span>AUP</span>
           </button>
 
+          <button
+            onClick={onTogglePrivacyModal}
+            className="hidden xl:flex items-center gap-1 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            title="Privacy & Data Governance"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Privacy</span>
+          </button>
         </div>
-
       </div>
     </header>
   );

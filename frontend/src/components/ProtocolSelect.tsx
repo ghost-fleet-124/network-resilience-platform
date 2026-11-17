@@ -1,5 +1,5 @@
 import React from 'react';
-import { Radio, Activity, Cpu, Layers, MessageSquare, Gamepad2, Zap, Globe } from 'lucide-react';
+import { Globe, Radio, Layers, MessageSquare, Gamepad2 } from 'lucide-react';
 import { Protocol } from '../types';
 
 interface ProtocolSelectProps {
@@ -8,14 +8,12 @@ interface ProtocolSelectProps {
   disabled: boolean;
 }
 
-interface ProtocolMeta {
+interface ProtocolOption {
   id: Protocol;
-  name: string;
-  badge: string;
-  tagline: string;
+  title: string;
+  category: string;
   description: string;
   icon: React.ReactNode;
-  accent: string;
 }
 
 export const ProtocolSelect: React.FC<ProtocolSelectProps> = ({
@@ -23,137 +21,92 @@ export const ProtocolSelect: React.FC<ProtocolSelectProps> = ({
   onSelect,
   disabled
 }) => {
-  const protocols: ProtocolMeta[] = [
+  const protocols: ProtocolOption[] = [
     {
       id: 'HTTP_WEBSITE',
-      name: 'Website Load Test',
-      badge: 'HTTP Flood / Web',
-      tagline: 'URL Load, Redirects & POST Workloads',
-      description: 'Test websites and APIs: homepage visits, POST checkouts, search requests, keep-alive reuse, and TLS timings.',
-      icon: <Globe className="w-5 h-5 text-emerald-400" />,
-      accent: 'border-emerald-500/80 bg-emerald-950/20 text-emerald-400 ring-1 ring-emerald-500'
-    },
-    {
-      id: 'UDP',
-      name: 'UDP Datagrams',
-      badge: 'Game Ticks & VoIP',
-      tagline: 'Measures Packet Loss, Jitter & Real RTT',
-      description: 'Ultra-low-overhead connectionless packets used by game physics and voice chat.',
-      icon: <Radio className="w-5 h-5" />,
-      accent: 'border-cyan-500/80 bg-cyan-950/20 text-cyan-400'
-    },
-    {
-      id: 'GAME_UDP',
-      name: 'Game Netcode (60Hz)',
-      badge: 'Multiplayer Sim',
-      tagline: 'Tick Synchronization & Player Input Loop',
-      description: 'Simulates genuine multiplayer virtual players streaming player movement and receiving world state.',
-      icon: <Gamepad2 className="w-5 h-5" />,
-      accent: 'border-sky-500/80 bg-sky-950/20 text-sky-400'
+      title: 'HTTP / Website Load Test',
+      category: 'Web & REST APIs',
+      description: 'Full HTTP client engine: GET/POST, headers, keep-alive reuse, JSON/form payloads, status codes.',
+      icon: <Globe className="w-4 h-4 text-blue-400" />
     },
     {
       id: 'TCP',
-      name: 'TCP Streams',
-      badge: 'Stateful Sessions',
-      tagline: 'Connection Handshake & Persistent Throughput',
-      description: 'Reliable stream connection testing handshake speed, socket persistence, and continuous framing.',
-      icon: <Layers className="w-5 h-5" />,
-      accent: 'border-blue-500/80 bg-blue-950/20 text-blue-400'
+      title: 'TCP Stream Sessions',
+      category: 'Transport Layer',
+      description: 'Persistent stream sockets testing handshake latency, framed streams, and sustained connection concurrency.',
+      icon: <Layers className="w-4 h-4 text-emerald-400" />
     },
     {
-      id: 'HTTP',
-      name: 'HTTP / REST APIs',
-      badge: 'Web & Auth',
-      tagline: 'Request/Sec, Status Codes & Concurrency',
-      description: 'Standard web service requests for login APIs, player inventory, and matchmaking endpoints.',
-      icon: <Cpu className="w-5 h-5" />,
-      accent: 'border-teal-500/80 bg-teal-950/20 text-teal-400'
-    },
-    {
-      id: 'HTTPS',
-      name: 'HTTPS / TLS',
-      badge: 'Encrypted APIs',
-      tagline: 'TLS Cryptographic Handshake & Secure Web',
-      description: 'Encrypted HTTPS transactions testing SSL/TLS termination overhead under load.',
-      icon: <Activity className="w-5 h-5" />,
-      accent: 'border-teal-500/80 bg-teal-950/20 text-teal-400'
+      id: 'UDP',
+      title: 'UDP Datagrams',
+      category: 'Datagram & Voice',
+      description: 'Connectionless datagram testing packet loss, RFC 3550 jitter, and high-frequency delivery.',
+      icon: <Radio className="w-4 h-4 text-sky-400" />
     },
     {
       id: 'WEBSOCKET',
-      name: 'WebSocket',
-      badge: 'Live Matchmaking',
-      tagline: 'Persistent Duplex Lobbies & Heartbeats',
-      description: 'Bi-directional real-time communication channels for tournament matchmaking and live chat.',
-      icon: <MessageSquare className="w-5 h-5" />,
-      accent: 'border-purple-500/80 bg-purple-950/20 text-purple-400'
+      title: 'WebSocket Duplex',
+      category: 'Real-Time Messaging',
+      description: 'Bidirectional persistent channels for real-time lobbies, notifications, and event streams.',
+      icon: <MessageSquare className="w-4 h-4 text-purple-400" />
     },
     {
-      id: 'GRPC',
-      name: 'gRPC & QUIC',
-      badge: 'Next-Gen RPC',
-      tagline: 'Protobuf & HTTP/3 Transport Verification',
-      description: 'Modern microservices transport testing multiplexed framing and transport handshake latency.',
-      icon: <Zap className="w-5 h-5" />,
-      accent: 'border-amber-500/80 bg-amber-950/20 text-amber-400'
+      id: 'GAME_UDP',
+      title: 'Game Netcode (60Hz)',
+      category: 'Multiplayer Simulation',
+      description: 'Tick-synchronized player input streams testing state frame sync and tick loss degradation.',
+      icon: <Gamepad2 className="w-4 h-4 text-amber-400" />
     }
   ];
 
   return (
-    <div className="bg-cyber-card border border-cyber-border rounded-2xl p-5 shadow-lg">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-sky-950/60 border border-sky-800 flex items-center justify-center text-sky-400">
-            <Radio className="w-4 h-4" />
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-3">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-400 font-mono">Step 2</span>
+            <h2 className="text-sm font-semibold text-white">Protocol Engine</h2>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-              2. Select Traffic Protocol
-            </h2>
-            <p className="text-xs text-slate-400">
-              Choose the network transport matching the service you want to test.
-            </p>
-          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Select the underlying transport and communication protocol for this test run.
+          </p>
         </div>
       </div>
 
-      {/* Protocol Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3">
-        {protocols.map((p) => {
-          const isSelected = selectedProtocol === p.id;
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {protocols.map((proto) => {
+          const isSelected = selectedProtocol === proto.id || 
+            (proto.id === 'HTTP_WEBSITE' && (selectedProtocol === 'HTTP' || selectedProtocol === 'HTTPS'));
+
           return (
             <button
-              key={p.id}
+              key={proto.id}
               type="button"
               disabled={disabled}
-              onClick={() => onSelect(p.id)}
-              className={`text-left rounded-xl p-3 border transition-all relative flex flex-col justify-between ${
+              onClick={() => onSelect(proto.id)}
+              className={`text-left p-3 rounded-md border transition-all cursor-pointer ${
                 isSelected
-                  ? `${p.accent} shadow-[0_0_15px_rgba(14,165,233,0.2)] ring-1 ring-cyan-400`
-                  : 'bg-[#0a0f1d] border-slate-800 hover:border-slate-700 text-slate-300'
-              } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.02]'}`}
+                  ? 'bg-slate-800 border-blue-500/80 ring-1 ring-blue-500/40 text-white shadow-sm'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/40 text-slate-300'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`p-2 rounded-lg ${isSelected ? 'bg-white/10' : 'bg-slate-800/80 text-slate-400'}`}>
-                    {p.icon}
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded ${isSelected ? 'bg-slate-700 text-blue-400' : 'bg-slate-900 text-slate-400'}`}>
+                    {proto.icon}
                   </div>
-                  <span className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${
-                    isSelected ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {p.badge}
-                  </span>
+                  <div>
+                    <h3 className="text-xs font-semibold">{proto.title}</h3>
+                    <span className="text-[10px] text-slate-400">{proto.category}</span>
+                  </div>
                 </div>
-                <h3 className="font-bold text-xs text-slate-100 mb-0.5">{p.name}</h3>
-                <p className="text-[11px] font-medium text-cyan-400 mb-1.5">{p.tagline}</p>
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{p.description}</p>
+                {isSelected && (
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                )}
               </div>
-
-              {isSelected && (
-                <div className="mt-2 text-[10px] font-mono font-semibold text-cyan-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                  ACTIVE SELECTION
-                </div>
-              )}
+              <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                {proto.description}
+              </p>
             </button>
           );
         })}

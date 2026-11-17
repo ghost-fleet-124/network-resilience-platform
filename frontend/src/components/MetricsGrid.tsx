@@ -1,18 +1,17 @@
 import React from 'react';
 import { 
   Activity, 
-  Zap, 
   Clock, 
   TrendingUp, 
-  Radio, 
-  Layers,
-  ArrowDownUp,
-  Server,
+  Server, 
+  CheckCircle2, 
+  XCircle, 
   AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Globe,
-  Timer
+  ArrowUpRight,
+  ArrowDownRight,
+  ShieldCheck,
+  Send,
+  Download
 } from 'lucide-react';
 import { MetricSnapshot } from '../types';
 
@@ -26,247 +25,210 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ snapshot }) => {
   const receivedRps = snapshot ? snapshot.received_rps : 0;
   const successfulRps = snapshot ? snapshot.successful_rps : 0;
   const failedRps = snapshot ? snapshot.failed_rps : 0;
-  
-  const pps = snapshot ? snapshot.packets_per_sec : 0;
-  const activeConns = snapshot ? snapshot.active_conns : 0;
-  const avgLat = snapshot ? snapshot.avg_latency_ms : 0;
-  const p50Lat = snapshot ? snapshot.p50_latency_ms : 0;
-  const p95Lat = snapshot ? snapshot.p95_latency_ms : 0;
-  const p99Lat = snapshot ? snapshot.p99_latency_ms : 0;
-  const jitter = snapshot ? snapshot.jitter_ms : 0;
-  const lossPct = snapshot ? snapshot.packet_loss_pct : 0;
-  const throughput = snapshot ? snapshot.throughput_kbps : 0;
-  const errorRate = snapshot ? snapshot.error_rate_pct : 0;
-  
-  const generatorCapPct = snapshot ? snapshot.generator_capacity_pct : 0;
-  const clusterMaxRps = snapshot ? snapshot.cluster_max_achievable_rps : 100000;
-  const nodesNeeded = snapshot ? snapshot.nodes_needed_for_target : 1;
 
-  // Status code aggregation
+  // Explicit lifecycle accounting
+  const scheduledCount = snapshot?.requests_scheduled ?? (snapshot ? Math.round(targetRps * snapshot.elapsed_sec) : 0);
+  const dispatchedCount = snapshot?.requests_dispatched ?? (snapshot?.total_requests ?? 0);
+  const completedCount = snapshot?.requests_completed ?? ((snapshot?.success_count || 0) + (snapshot?.error_count || 0));
+  const successCount = snapshot?.success_count ?? 0;
+  const errorCount = snapshot?.error_count ?? 0;
+  const connectionErrors = snapshot?.connection_errors ?? 0;
+
+  // Latencies
+  const avgLat = snapshot?.avg_latency_ms ?? 0;
+  const p50Lat = snapshot?.p50_latency_ms ?? 0;
+  const p95Lat = snapshot?.p95_latency_ms ?? 0;
+  const p99Lat = snapshot?.p99_latency_ms ?? 0;
+  const jitter = snapshot?.jitter_ms ?? 0;
+  const throughput = snapshot?.throughput_kbps ?? 0;
+  const activeConns = snapshot?.active_conns ?? 0;
+
+  // Success rate %
+  const totalOps = successCount + errorCount;
+  const successRatePct = totalOps > 0 ? ((successCount / totalOps) * 100).toFixed(1) : '100.0';
+
+  // Status code breakdown
   const statusCodes = snapshot?.status_codes || {};
-  const status2xx = Object.entries(statusCodes)
-    .filter(([c]) => c.startsWith('2'))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const status3xx = Object.entries(statusCodes)
-    .filter(([c]) => c.startsWith('3'))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const status4xx = Object.entries(statusCodes)
-    .filter(([c]) => c.startsWith('4'))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const status5xx = Object.entries(statusCodes)
-    .filter(([c]) => c.startsWith('5'))
-    .reduce((sum, [, count]) => sum + count, 0);
-  const timeouts = snapshot?.timeouts_count || (statusCodes['504'] || 0);
+  const status2xx = Object.entries(statusCodes).filter(([c]) => c.startsWith('2')).reduce((sum, [, count]) => sum + count, 0);
+  const status3xx = Object.entries(statusCodes).filter(([c]) => c.startsWith('3')).reduce((sum, [, count]) => sum + count, 0);
+  const status4xx = Object.entries(statusCodes).filter(([c]) => c.startsWith('4')).reduce((sum, [, count]) => sum + count, 0);
+  const status5xx = Object.entries(statusCodes).filter(([c]) => c.startsWith('5')).reduce((sum, [, count]) => sum + count, 0);
+  const timeouts = snapshot?.timeouts_count ?? (statusCodes['504'] || 0);
 
   const hasStatusCodes = Object.keys(statusCodes).length > 0;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       
-      {/* 4-Pillar Enterprise RPS Breakdown Banner */}
-      <div className="bg-[#0b101e] border border-cyan-500/40 rounded-2xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
-        <div className="flex items-center justify-between text-xs font-mono mb-3 border-b border-slate-800 pb-2.5">
-          <div className="flex items-center gap-2 text-cyan-400 font-extrabold uppercase tracking-wider">
-            <Zap className="w-4 h-4" />
-            <span>Enterprise Request-Per-Second (RPS) Velocity Breakdown</span>
+      {/* 4 Main Observable KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+        {/* KPI 1: Rate Velocity */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-medium">Request Throughput</span>
+            <span className="font-mono text-[11px] text-blue-400">Target: {targetRps.toLocaleString()} RPS</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="text-slate-400">Generator Cluster Ceiling:</span>
-            <span className="text-emerald-400 font-bold">{clusterMaxRps.toLocaleString()} RPS (Local Node)</span>
+          <div className="text-2xl font-bold font-mono text-white tracking-tight">
+            {generatedRps.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            <span className="text-xs font-normal text-slate-400 ml-1">RPS</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+            <span>Server Confirmed:</span>
+            <span className="font-mono text-slate-200">{receivedRps.toLocaleString(undefined, { maximumFractionDigits: 0 })} RPS</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
-          
-          {/* Pillar 1: Target Requested RPS */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-purple-800/80">
-            <div className="text-[11px] text-purple-300 uppercase tracking-wider font-semibold">1. Requested Target</div>
-            <div className="text-2xl font-extrabold text-purple-400 mt-1">
-              {targetRps.toLocaleString()}
-              <span className="text-xs text-slate-400 font-sans ml-1">RPS</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1">Configured workload target</div>
+        {/* KPI 2: Success Rate */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-medium">Success Rate</span>
+            <span className={`font-mono text-[11px] ${parseFloat(successRatePct) >= 99 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {successRatePct}%
+            </span>
           </div>
-
-          {/* Pillar 2: Actual Generated RPS */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-800/80">
-            <div className="text-[11px] text-cyan-300 uppercase tracking-wider font-semibold">2. Outbound Generated</div>
-            <div className="text-2xl font-extrabold text-cyan-400 mt-1">
-              {generatedRps.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              <span className="text-xs text-slate-400 font-sans ml-1">RPS</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1 flex justify-between">
-              <span>Traffic dispatched by nodes</span>
-              {pps > 0 && <span className="text-cyan-300">{pps.toFixed(0)} PPS</span>}
-            </div>
+          <div className="text-2xl font-bold font-mono text-white tracking-tight">
+            {successCount.toLocaleString()}
+            <span className="text-xs font-normal text-slate-400 ml-1">ok</span>
           </div>
-
-          {/* Pillar 3: Received Acknowledged RPS */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-sky-800/80">
-            <div className="text-[11px] text-sky-300 uppercase tracking-wider font-semibold">3. Received / Echoed</div>
-            <div className="text-2xl font-extrabold text-sky-400 mt-1">
-              {receivedRps.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              <span className="text-xs text-slate-400 font-sans ml-1">RPS</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1">Acknowledged by server</div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+            <span>Failures / Drops:</span>
+            <span className={`font-mono ${errorCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>{errorCount.toLocaleString()}</span>
           </div>
-
-          {/* Pillar 4: Successfully Processed vs Failed */}
-          <div className="p-3.5 rounded-xl bg-slate-900/90 border border-emerald-800/80">
-            <div className="text-[11px] text-emerald-300 uppercase tracking-wider font-semibold flex items-center justify-between">
-              <span>4. Processed Success</span>
-              <span className="text-rose-400 text-[10px]">Fail: {failedRps.toFixed(0)}/s</span>
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-400 mt-1">
-              {successfulRps.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              <span className="text-xs text-slate-400 font-sans ml-1">RPS</span>
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between">
-              <span className="text-emerald-400">Total: {snapshot?.success_count || 0}</span>
-              <span className="text-rose-400">Drops: {snapshot?.error_count || 0}</span>
-            </div>
-          </div>
-
         </div>
 
-        {/* Capacity Warning Banner if Target Exceeds Generator Capacity */}
-        {snapshot?.capacity_warning && (
-          <div className="mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-300 text-xs font-mono flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 animate-pulse text-amber-400" />
-            <span>{snapshot.capacity_warning}</span>
+        {/* KPI 3: Response Latency (P95) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-medium">Latency (P95)</span>
+            <span className="font-mono text-[11px] text-slate-400">Avg: {avgLat.toFixed(1)}ms</span>
           </div>
-        )}
+          <div className="text-2xl font-bold font-mono text-white tracking-tight">
+            {p95Lat.toFixed(1)}
+            <span className="text-xs font-normal text-slate-400 ml-1">ms</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+            <span>P50: {p50Lat.toFixed(1)}ms</span>
+            <span>P99: {p99Lat.toFixed(1)}ms</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Bandwidth & Connections */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span className="font-medium">Network Data Rate</span>
+            <span className="font-mono text-[11px] text-slate-400">{activeConns} conns</span>
+          </div>
+          <div className="text-2xl font-bold font-mono text-white tracking-tight">
+            {(throughput / 1024).toFixed(2)}
+            <span className="text-xs font-normal text-slate-400 ml-1">MB/s</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800">
+            <span>Throughput:</span>
+            <span className="font-mono text-slate-200">{(throughput).toFixed(0)} kbps</span>
+          </div>
+        </div>
+
       </div>
 
-      {/* HTTP Status Code & Website Telemetry Bar (Visible when status codes recorded) */}
+      {/* Request Lifecycle Accounting: Scheduled vs Dispatched vs Completed */}
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div>
+            <h3 className="text-xs font-semibold text-white">Client vs Server Request Accounting</h3>
+            <p className="text-[11px] text-slate-400">
+              Clear distinction between client-dispatched requests and target-confirmed responses.
+            </p>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+            RFC Pacing Engine
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-mono">
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-sans">Scheduled</span>
+            <div className="text-sm font-bold text-slate-200 mt-0.5">{scheduledCount.toLocaleString()}</div>
+            <span className="text-[10px] text-slate-500 font-sans">planned workload</span>
+          </div>
+
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-blue-400 uppercase tracking-wider block font-sans">Dispatched</span>
+            <div className="text-sm font-bold text-blue-300 mt-0.5">{dispatchedCount.toLocaleString()}</div>
+            <span className="text-[10px] text-slate-500 font-sans">emitted by client</span>
+          </div>
+
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-sans">Completed</span>
+            <div className="text-sm font-bold text-slate-100 mt-0.5">{completedCount.toLocaleString()}</div>
+            <span className="text-[10px] text-slate-500 font-sans">server responded</span>
+          </div>
+
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-emerald-400 uppercase tracking-wider block font-sans">Successful</span>
+            <div className="text-sm font-bold text-emerald-400 mt-0.5">{successCount.toLocaleString()}</div>
+            <span className="text-[10px] text-slate-500 font-sans">2xx / verified acks</span>
+          </div>
+
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-rose-400 uppercase tracking-wider block font-sans">Failed / Errors</span>
+            <div className={`text-sm font-bold mt-0.5 ${errorCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+              {errorCount.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans">4xx / 5xx / drops</span>
+          </div>
+
+          <div className="bg-slate-950 p-2.5 rounded border border-slate-800">
+            <span className="text-[10px] text-amber-400 uppercase tracking-wider block font-sans">Timeouts</span>
+            <div className={`text-sm font-bold mt-0.5 ${timeouts > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
+              {timeouts.toLocaleString()}
+            </div>
+            <span className="text-[10px] text-slate-500 font-sans">client timeouts (504)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* HTTP Status Code Distribution (when HTTP requests exist) */}
       {hasStatusCodes && (
-        <div className="bg-[#0b101e] border border-emerald-500/40 rounded-2xl p-3 shadow-lg font-mono text-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-wider">
-              <Globe className="w-4 h-4" />
-              <span>HTTP Status Distribution & Website Telemetry:</span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap text-[11px]">
-              <span className="px-2 py-0.5 rounded bg-emerald-950 border border-emerald-700/80 text-emerald-300 font-bold">
-                2xx Success: {status2xx.toLocaleString()}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-sky-950 border border-sky-700/80 text-sky-300 font-bold">
-                3xx Redirect: {status3xx.toLocaleString()}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-amber-950 border border-amber-700/80 text-amber-300 font-bold">
-                4xx Client Err: {status4xx.toLocaleString()}
-              </span>
-              <span className="px-2 py-0.5 rounded bg-rose-950 border border-rose-700/80 text-rose-300 font-bold">
-                5xx Server Err: {status5xx.toLocaleString()}
-              </span>
-              {timeouts > 0 && (
-                <span className="px-2 py-0.5 rounded bg-red-950 border border-red-600 text-red-200 font-bold animate-pulse">
-                  Timeouts (504): {timeouts.toLocaleString()}
-                </span>
-              )}
-              {snapshot?.avg_response_bytes ? (
-                <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
-                  Avg Size: {(snapshot.avg_response_bytes / 1024).toFixed(1)} KB
-                </span>
-              ) : null}
-            </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <h3 className="text-xs font-semibold text-white">HTTP Status Code Distribution</h3>
+            <span className="text-xs font-mono text-slate-400">Total Responses: {completedCount.toLocaleString()}</span>
+          </div>
+
+          {/* Distribution Bar */}
+          <div className="w-full bg-slate-950 rounded h-3 overflow-hidden flex border border-slate-800">
+            {completedCount > 0 && (
+              <>
+                <div style={{ width: `${(status2xx / completedCount) * 100}%` }} className="bg-emerald-500" title={`2xx: ${status2xx}`} />
+                <div style={{ width: `${(status3xx / completedCount) * 100}%` }} className="bg-blue-500" title={`3xx: ${status3xx}`} />
+                <div style={{ width: `${(status4xx / completedCount) * 100}%` }} className="bg-amber-500" title={`4xx: ${status4xx}`} />
+                <div style={{ width: `${(status5xx / completedCount) * 100}%` }} className="bg-rose-500" title={`5xx: ${status5xx}`} />
+              </>
+            )}
+          </div>
+
+          {/* Code Badges */}
+          <div className="flex items-center gap-3 flex-wrap text-xs font-mono">
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              2xx Success: <strong>{status2xx.toLocaleString()}</strong>
+            </span>
+            <span className="flex items-center gap-1.5 text-blue-400">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              3xx Redirect: <strong>{status3xx.toLocaleString()}</strong>
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-400">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              4xx Client Error: <strong>{status4xx.toLocaleString()}</strong>
+            </span>
+            <span className="flex items-center gap-1.5 text-rose-400">
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              5xx Server Error: <strong>{status5xx.toLocaleString()}</strong>
+            </span>
           </div>
         </div>
       )}
-
-      {/* Secondary Metrics Row (Latency, Tail P95/P99, Loss & Jitter, Concurrency, Throughput, Generator Load) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        
-        {/* 1. Concurrency Sockets */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Concurrency</span>
-            <Layers className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-sky-400 font-mono">
-            {activeConns.toLocaleString()}
-            <span className="text-xs text-slate-500 font-sans ml-1">conns</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            Success: {snapshot?.successful_conns || 0}
-          </div>
-        </div>
-
-        {/* 2. Average Latency */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Avg Response</span>
-            <Clock className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-emerald-400 font-mono">
-            {avgLat.toFixed(1)}
-            <span className="text-xs text-slate-500 font-sans ml-1">ms</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            P50 Median: {p50Lat.toFixed(1)} ms
-          </div>
-        </div>
-
-        {/* 3. P95 / P99 Tail Latency */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>P95 / P99 Tail</span>
-            <Activity className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-amber-400 font-mono">
-            {p95Lat.toFixed(1)}
-            <span className="text-xs text-slate-500 font-sans ml-1">ms</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            P99 Latency: {p99Lat.toFixed(1)} ms
-          </div>
-        </div>
-
-        {/* 4. Loss & Jitter */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Loss / Drops</span>
-            <Radio className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-purple-400 font-mono">
-            {lossPct.toFixed(1)}%
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            Jitter: {jitter.toFixed(1)} ms (RFC 3550)
-          </div>
-        </div>
-
-        {/* 5. Network Throughput */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Throughput</span>
-            <ArrowDownUp className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-indigo-400 font-mono">
-            {(throughput / 1024).toFixed(1)}
-            <span className="text-xs text-slate-500 font-sans ml-1">MB/s</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            {((throughput * 8) / 1000000).toFixed(2)} Gbps &bull; Err: {errorRate.toFixed(1)}%
-          </div>
-        </div>
-
-        {/* 6. Generator Node Load */}
-        <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-mono uppercase mb-1.5">
-            <span>Generator Load</span>
-            <Server className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="text-2xl font-extrabold text-cyan-400 font-mono">
-            {generatorCapPct.toFixed(0)}%
-            <span className="text-xs text-slate-500 font-sans ml-1">capacity</span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-400 font-mono">
-            Scale: {nodesNeeded} node{nodesNeeded > 1 ? 's' : ''} needed for target
-          </div>
-        </div>
-
-      </div>
 
     </div>
   );

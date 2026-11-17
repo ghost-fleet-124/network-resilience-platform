@@ -144,6 +144,9 @@ class TestStartRequest(BaseModel):
     http_method: Optional[str] = "GET"
     http_path: Optional[str] = "/"
     http_payload: Optional[str] = None
+    http_body_type: Optional[str] = "json"
+    http_content_type: Optional[str] = None
+    http_query_params: Optional[Dict[str, str]] = None
     http_headers: Optional[Dict[str, str]] = None
     http_follow_redirects: Optional[bool] = True
     http_keep_alive: Optional[bool] = True
@@ -228,11 +231,15 @@ class MetricSnapshot(BaseModel):
     req_per_sec: float = 0.0        # Application level requests/sec
     packets_per_sec: float = 0.0    # Transport level datagrams/sec (PPS)
     
-    # Counts
+    # Counts & Lifecycle Accounting
     active_conns: int = 0
     successful_conns: int = 0
     failed_conns: int = 0
     total_requests: int = 0
+    requests_scheduled: int = 0
+    requests_dispatched: int = 0
+    requests_completed: int = 0
+    connection_errors: int = 0
     total_packets_sent: int = 0
     total_packets_received: int = 0
     packet_loss_pct: float = 0.0
@@ -293,11 +300,15 @@ class TestReport(BaseModel):
     timeouts_count: int = 0
     website_analysis: Dict[str, Any] = Field(default_factory=dict)
     
-    # Traffic totals
+    # Traffic totals & Lifecycle Accounting
     total_packets_sent: int = 0
     total_packets_received: int = 0
     packet_loss_pct: float = 0.0
     total_requests: int = 0
+    requests_scheduled: int = 0
+    requests_dispatched: int = 0
+    requests_completed: int = 0
+    connection_errors: int = 0
     successful_operations: int = 0
     failed_operations: int = 0
     

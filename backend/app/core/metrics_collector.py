@@ -73,6 +73,7 @@ class MetricsCollector:
         self.active_conns = 0
         self.successful_conns = 0
         self.failed_conns = 0
+        self.connection_errors = 0
 
         # Unbounded time-bucketed rolling rate calculator (20 slots of 50ms = 1.0s window)
         self._bucket_interval = 0.05
@@ -204,6 +205,42 @@ class MetricsCollector:
             else:
                 self.failed_conns += 1
 
+    def record_connection_error(self):
+        """Records socket connection failures, resets, or unreachable hosts."""
+        self.connection_errors += 1
+        self.failed_conns += 1
+
+    def calculate_scheduled_requests(self, elapsed: float) -> int:
+        """
+        Integrates total workload requests planned across the configured ramp curve.
+        Ensures scheduled count is mathematically distinct from actual dispatched and completed counts.
+        """
+        if elapsed <= 0 or self.target_rps <= 0:
+            return 0
+        total_time = self.ramp_up_sec + self.sustained_sec + self.ramp_down_sec
+        effective_elapsed = min(elapsed, float(total_time))
+        
+        # 1. Ramp-up segment
+        ramp_up = min(effective_elapsed, float(self.ramp_up_sec))
+        reqs_ramp_up = self.target_rps * (0.55 * ramp_up) if self.ramp_up_sec > 0 else 0.0
+        
+        # 2. Sustained segment
+        if effective_elapsed > self.ramp_up_sec:
+            sustained_elapsed = min(effective_elapsed - self.ramp_up_sec, float(self.sustained_sec))
+            reqs_sustained = self.target_rps * 1.0 * sustained_elapsed
+        else:
+            reqs_sustained = 0.0
+            
+        # 3. Ramp-down segment
+        sustained_end = float(self.ramp_up_sec + self.sustained_sec)
+        if effective_elapsed > sustained_end:
+            ramp_down_elapsed = min(effective_elapsed - sustained_end, float(self.ramp_down_sec))
+            reqs_ramp_down = self.target_rps * (0.525 * ramp_down_elapsed) if self.ramp_down_sec > 0 else 0.0
+        else:
+            reqs_ramp_down = 0.0
+            
+        return int(round(reqs_ramp_up + reqs_sustained + reqs_ramp_down))
+
     def compute_percentiles(self, sample_list) -> Dict[str, float]:
         if not sample_list:
             return {"min": 0.0, "max": 0.0, "avg": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0}
@@ -273,6 +310,10 @@ class MetricsCollector:
         cpu_pct = psutil.cpu_percent()
         ram_pct = psutil.virtual_memory().percent
 
+        requests_scheduled = self.calculate_scheduled_requests(elapsed)
+        requests_dispatched = self.total_generated_requests
+        requests_completed = self.total_received_requests
+
         snapshot = MetricSnapshot(
             timestamp=now,
             test_id=self.test_id,
@@ -289,6 +330,10 @@ class MetricsCollector:
             successful_conns=self.successful_conns,
             failed_conns=self.failed_conns,
             total_requests=max(self.total_generated_requests, self.total_successful_requests + self.total_failed_requests),
+            requests_scheduled=requests_scheduled,
+            requests_dispatched=requests_dispatched,
+            requests_completed=requests_completed,
+            connection_errors=self.connection_errors,
             total_packets_sent=self.total_packets_sent,
             total_packets_received=self.total_packets_received,
             packet_loss_pct=packet_loss_pct,
@@ -426,6 +471,10 @@ class MetricsCollector:
             total_packets_received=self.total_packets_received,
             packet_loss_pct=loss_pct,
             total_requests=max(self.total_generated_requests, self.total_successful_requests + self.total_failed_requests),
+            requests_scheduled=self.calculate_scheduled_requests(duration),
+            requests_dispatched=self.total_generated_requests,
+            requests_completed=self.total_received_requests,
+            connection_errors=self.connection_errors,
             successful_operations=self.total_successful_requests,
             failed_operations=self.total_failed_requests,
             peak_throughput_kbps=peak_throughput,

@@ -201,3 +201,67 @@ async def test_emergency_stop_cut_off():
     assert orchestrator.active_status == TestStatusEnum.IDLE
     assert report is not None
     assert report.status == TestStatusEnum.CIRCUIT_BROKEN or report.abort_reason == "MANUAL_KILL_SWITCH_PRESSED"
+
+@pytest.mark.asyncio
+async def test_website_get_with_explicit_query_params_e2e():
+    req = TestStartRequest(
+        host="127.0.0.1",
+        port=9003,
+        protocol=ProtocolEnum.HTTP_WEBSITE,
+        intensity=IntensityPresetEnum.LOW,
+        duration_sec=3,
+        target_url="http://127.0.0.1:9003/search",
+        http_method="GET",
+        http_query_params={"q": "tournament_championship", "limit": "25"},
+        http_headers={"X-Test-Source": "ResilienceOps-Verification"},
+        http_follow_redirects=True,
+        http_keep_alive=True,
+        http_virtual_users=10
+    )
+    res = await orchestrator.start_test(req)
+    assert res["status"] == "RUNNING"
+    await asyncio.sleep(1.2)
+    
+    status = orchestrator.get_current_status()
+    snap = status["snapshot"]
+    assert snap is not None
+    assert snap["total_requests"] > 0
+    assert snap["requests_dispatched"] > 0
+    assert snap["requests_completed"] > 0
+    assert snap["status_codes"].get("200", 0) > 0
+    
+    report = await orchestrator.stop_test(reason="TEST_COMPLETE", is_completed=True)
+    assert report is not None
+    assert report.successful_operations > 0
+    assert report.requests_dispatched > 0
+    assert report.requests_completed > 0
+
+@pytest.mark.asyncio
+async def test_website_post_form_encoded_workload_e2e():
+    req = TestStartRequest(
+        host="127.0.0.1",
+        port=9003,
+        protocol=ProtocolEnum.HTTP_WEBSITE,
+        intensity=IntensityPresetEnum.LOW,
+        duration_sec=3,
+        target_url="http://127.0.0.1:9003/api/auth",
+        http_method="POST",
+        http_body_type="form",
+        http_payload="username=enterprise_lead&action=authenticate&token=tok_99182",
+        http_follow_redirects=True,
+        http_keep_alive=True,
+        http_virtual_users=10
+    )
+    res = await orchestrator.start_test(req)
+    assert res["status"] == "RUNNING"
+    await asyncio.sleep(1.2)
+    
+    status = orchestrator.get_current_status()
+    snap = status["snapshot"]
+    assert snap is not None
+    assert snap["total_requests"] > 0
+    assert snap["status_codes"].get("200", 0) > 0
+    
+    report = await orchestrator.stop_test(reason="TEST_COMPLETE", is_completed=True)
+    assert report is not None
+    assert report.successful_operations > 0

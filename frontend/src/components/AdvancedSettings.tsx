@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, ChevronDown, ChevronUp, Clock, TrendingUp, Globe, Shield } from 'lucide-react';
+import { Sliders, ChevronDown, ChevronUp, Clock, ShieldAlert, Cpu } from 'lucide-react';
 import { Protocol } from '../types';
 
 interface AdvancedSettingsProps {
@@ -8,22 +8,10 @@ interface AdvancedSettingsProps {
   setPacketSize: (v: number) => void;
   gameTickHz: number;
   setGameTickHz: (v: number) => void;
-  httpMethod: string;
-  setHttpMethod: (v: string) => void;
-  httpPath: string;
-  setHttpPath: (v: string) => void;
-  httpPayload: string;
-  setHttpPayload: (v: string) => void;
-  httpHeaders: string;
-  setHttpHeaders: (v: string) => void;
   httpFollowRedirects: boolean;
   setHttpFollowRedirects: (v: boolean) => void;
   httpKeepAlive: boolean;
   setHttpKeepAlive: (v: boolean) => void;
-  httpTimeoutSec: number;
-  setHttpTimeoutSec: (v: number) => void;
-  httpVirtualUsers: number;
-  setHttpVirtualUsers: (v: number) => void;
   wsPath: string;
   setWsPath: (v: string) => void;
   errorThreshold: number;
@@ -45,22 +33,10 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
   setPacketSize,
   gameTickHz,
   setGameTickHz,
-  httpMethod,
-  setHttpMethod,
-  httpPath,
-  setHttpPath,
-  httpPayload,
-  setHttpPayload,
-  httpHeaders,
-  setHttpHeaders,
   httpFollowRedirects,
   setHttpFollowRedirects,
   httpKeepAlive,
   setHttpKeepAlive,
-  httpTimeoutSec,
-  setHttpTimeoutSec,
-  httpVirtualUsers,
-  setHttpVirtualUsers,
   wsPath,
   setWsPath,
   errorThreshold,
@@ -76,320 +52,219 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
   disabled
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const isHttpFamily = protocol === 'HTTP' || protocol === 'HTTPS' || protocol === 'HTTP_WEBSITE';
+  const isHttp = protocol === 'HTTP' || protocol === 'HTTPS' || protocol === 'HTTP_WEBSITE';
+  const totalDuration = rampUpSec + sustainedSec + rampDownSec;
 
   return (
-    <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4 shadow-lg">
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between text-left text-slate-300 hover:text-white transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-cyan-400">
+          <div className="w-5 h-5 rounded bg-slate-800 flex items-center justify-center text-slate-400">
             <Sliders className="w-3.5 h-3.5" />
           </div>
           <div>
-            <span className="text-xs font-mono font-bold uppercase tracking-wider">
-              4. Advanced Workload Curves & Protocol Tuning
+            <span className="text-xs font-semibold text-slate-200">
+              Advanced Timing & Protocol Tuning
             </span>
-            <span className="ml-2 text-[11px] text-slate-500 font-sans">
-              (Ramp-Up, Sustained, Ramp-Down timings, headers, payloads & safety limits)
+            <span className="ml-2 text-[11px] text-slate-400">
+              (Ramp curves, connection reuse, packet framing & safety thresholds)
             </span>
           </div>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-slate-400">
+            Total: {totalDuration}s
+          </span>
+          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </div>
       </button>
 
       {isOpen && (
-        <div className="mt-4 pt-4 border-t border-slate-800 space-y-4 text-xs font-mono">
+        <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
           
           {/* Workload Timing Curves (Ramp-up, Sustained, Ramp-down) */}
-          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
-            <div className="text-cyan-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>Traffic Workload Curve Choreography</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
+              <Clock className="w-3.5 h-3.5 text-blue-400" />
+              <span>Workload Curve Timings</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-slate-400 mb-1 flex justify-between">
-                  <span>Ramp-Up Duration</span>
-                  <span className="text-cyan-300 font-bold">{rampUpSec}s</span>
-                </label>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Ramp-Up:</span>
+                  <span className="font-mono text-white">{rampUpSec}s</span>
+                </div>
                 <input
                   type="range"
-                  disabled={disabled}
-                  min={1}
-                  max={60}
-                  step={1}
+                  min="0"
+                  max="30"
                   value={rampUpSec}
-                  onChange={(e) => setRampUpSec(parseInt(e.target.value))}
-                  className="w-full accent-cyan-500"
+                  onChange={(e) => setRampUpSec(parseInt(e.target.value) || 0)}
+                  disabled={disabled}
+                  className="w-full accent-blue-500 cursor-pointer"
                 />
-                <span className="text-[10px] text-slate-500">Gradual socket concurrency build-up</span>
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1 flex justify-between">
-                  <span>Sustained Duration</span>
-                  <span className="text-sky-300 font-bold">{sustainedSec}s</span>
-                </label>
+              <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Sustained:</span>
+                  <span className="font-mono text-white">{sustainedSec}s</span>
+                </div>
                 <input
                   type="range"
-                  disabled={disabled}
-                  min={5}
-                  max={300}
-                  step={5}
+                  min="5"
+                  max="300"
+                  step="5"
                   value={sustainedSec}
-                  onChange={(e) => setSustainedSec(parseInt(e.target.value))}
-                  className="w-full accent-sky-500"
+                  onChange={(e) => setSustainedSec(parseInt(e.target.value) || 5)}
+                  disabled={disabled}
+                  className="w-full accent-blue-500 cursor-pointer"
                 />
-                <span className="text-[10px] text-slate-500">100% full intensity test window</span>
               </div>
 
-              <div>
-                <label className="block text-slate-400 mb-1 flex justify-between">
-                  <span>Ramp-Down Duration</span>
-                  <span className="text-emerald-300 font-bold">{rampDownSec}s</span>
-                </label>
+              <div className="bg-slate-950 p-2.5 rounded border border-slate-800 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Ramp-Down:</span>
+                  <span className="font-mono text-white">{rampDownSec}s</span>
+                </div>
                 <input
                   type="range"
-                  disabled={disabled}
-                  min={0}
-                  max={60}
-                  step={5}
+                  min="0"
+                  max="30"
                   value={rampDownSec}
-                  onChange={(e) => setRampDownSec(parseInt(e.target.value))}
-                  className="w-full accent-emerald-500"
+                  onChange={(e) => setRampDownSec(parseInt(e.target.value) || 0)}
+                  disabled={disabled}
+                  className="w-full accent-blue-500 cursor-pointer"
                 />
-                <span className="text-[10px] text-slate-500">Graceful traffic cool-down</span>
               </div>
             </div>
           </div>
 
-          {/* Website / HTTP Specific Configuration */}
-          {isHttpFamily && (
-            <div className="p-3.5 rounded-xl bg-slate-950/70 border border-emerald-900/40 space-y-3">
-              <div className="text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5" />
-                <span>Website Load Testing & HTTP Parameters</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* HTTP Specific Settings */}
+          {isHttp && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+              <label className="flex items-center gap-2 p-2.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={httpKeepAlive}
+                  onChange={(e) => setHttpKeepAlive(e.target.checked)}
+                  disabled={disabled}
+                  className="rounded border-slate-700 text-blue-500 focus:ring-0"
+                />
                 <div>
-                  <label className="block text-slate-400 mb-1">HTTP Method</label>
-                  <select
-                    disabled={disabled}
-                    value={httpMethod}
-                    onChange={(e) => setHttpMethod(e.target.value)}
-                    className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
-                  >
-                    <option value="GET">GET (Page visit / Read API)</option>
-                    <option value="POST">POST (Form / Checkout / Auth)</option>
-                    <option value="PUT">PUT (Update resource)</option>
-                    <option value="HEAD">HEAD (Headers check)</option>
-                  </select>
+                  <span className="font-medium">Connection Reuse (HTTP Keep-Alive)</span>
+                  <p className="text-[11px] text-slate-400">Reuses TCP connections across requests for maximum throughput</p>
                 </div>
+              </label>
 
-                {protocol !== 'HTTP_WEBSITE' ? (
-                  <div>
-                    <label className="block text-slate-400 mb-1">URL Path / Route</label>
-                    <input
-                      type="text"
-                      disabled={disabled}
-                      value={httpPath}
-                      onChange={(e) => setHttpPath(e.target.value)}
-                      placeholder="/ or /search?q=test"
-                      className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-slate-400 mb-1">URL Endpoint & Query</label>
-                    <div className="w-full bg-[#0a0f1d]/70 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 text-xs font-mono flex items-center gap-1.5 h-[38px]">
-                      <span className="text-emerald-400 font-bold">✓</span>
-                      <span className="truncate">Parsed from Target URL</span>
-                    </div>
-                  </div>
-                )}
-
+              <label className="flex items-center gap-2 p-2.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={httpFollowRedirects}
+                  onChange={(e) => setHttpFollowRedirects(e.target.checked)}
+                  disabled={disabled}
+                  className="rounded border-slate-700 text-blue-500 focus:ring-0"
+                />
                 <div>
-                  <label className="block text-slate-400 mb-1 flex justify-between">
-                    <span>Virtual Users / Concurrency</span>
-                    <span className="text-emerald-400 font-bold">{httpVirtualUsers} conns</span>
-                  </label>
-                  <input
-                    type="number"
-                    disabled={disabled}
-                    min={1}
-                    max={2000}
-                    value={httpVirtualUsers}
-                    onChange={(e) => setHttpVirtualUsers(parseInt(e.target.value) || 50)}
-                    className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
-                  />
+                  <span className="font-medium">Follow HTTP Redirects (3xx)</span>
+                  <p className="text-[11px] text-slate-400">Automatically resolves 301, 302, 307 and 308 redirects</p>
                 </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1 flex justify-between">
-                    <span>Response Timeout</span>
-                    <span className="text-emerald-400 font-bold">{httpTimeoutSec}s</span>
-                  </label>
-                  <input
-                    type="number"
-                    disabled={disabled}
-                    min={1}
-                    max={60}
-                    step={0.5}
-                    value={httpTimeoutSec}
-                    onChange={(e) => setHttpTimeoutSec(parseFloat(e.target.value) || 5.0)}
-                    className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Toggles: Keep-Alive & Redirects */}
-              <div className="flex flex-wrap items-center gap-6 pt-1 text-slate-300">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    disabled={disabled}
-                    checked={httpKeepAlive}
-                    onChange={(e) => setHttpKeepAlive(e.target.checked)}
-                    className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 w-4 h-4 accent-emerald-500"
-                  />
-                  <span>Connection Reuse (HTTP Keep-Alive)</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    disabled={disabled}
-                    checked={httpFollowRedirects}
-                    onChange={(e) => setHttpFollowRedirects(e.target.checked)}
-                    className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 w-4 h-4 accent-emerald-500"
-                  />
-                  <span>Follow HTTP 301/302 Redirects</span>
-                </label>
-              </div>
-
-              {/* Headers and Body */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block text-slate-400 mb-1">Custom Request Headers (One per line)</label>
-                  <textarea
-                    disabled={disabled}
-                    rows={3}
-                    value={httpHeaders}
-                    onChange={(e) => setHttpHeaders(e.target.value)}
-                    placeholder="Authorization: Bearer my-token&#10;X-Custom-Header: test&#10;Accept: application/json"
-                    className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg p-2.5 text-slate-200 outline-none focus:border-emerald-500 font-mono text-[11px] resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1">
-                    Request Body / Payload {httpMethod === 'GET' ? '(Disabled for GET)' : '(POST/PUT)'}
-                  </label>
-                  <textarea
-                    disabled={disabled || httpMethod === 'GET' || httpMethod === 'HEAD'}
-                    rows={3}
-                    value={httpPayload}
-                    onChange={(e) => setHttpPayload(e.target.value)}
-                    placeholder='{"action": "search", "query": "tournament", "page": 1}'
-                    className={`w-full bg-[#0a0f1d] border rounded-lg p-2.5 text-slate-200 outline-none focus:border-emerald-500 font-mono text-[11px] resize-none ${
-                      httpMethod === 'GET' || httpMethod === 'HEAD' ? 'opacity-40 cursor-not-allowed border-slate-800' : 'border-slate-700'
-                    }`}
-                  />
-                </div>
-              </div>
+              </label>
             </div>
           )}
 
-          {/* Protocol Tuning Grid for Non-HTTP */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Transport Specific Settings (UDP / TCP / WS / Game) */}
+          {!isHttp && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+              {protocol === 'UDP' && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-slate-300">Packet Size (Bytes)</label>
+                  <input
+                    type="number"
+                    min="32"
+                    max="1400"
+                    value={packetSize}
+                    onChange={(e) => setPacketSize(parseInt(e.target.value) || 256)}
+                    disabled={disabled}
+                    className="w-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-mono text-white rounded focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+
+              {protocol === 'GAME_UDP' && (
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-slate-300">Tick Rate (Hz)</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="128"
+                    value={gameTickHz}
+                    onChange={(e) => setGameTickHz(parseInt(e.target.value) || 60)}
+                    disabled={disabled}
+                    className="w-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-mono text-white rounded focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+
+              {protocol === 'WEBSOCKET' && (
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-300">WebSocket Path</label>
+                  <input
+                    type="text"
+                    value={wsPath}
+                    onChange={(e) => setWsPath(e.target.value)}
+                    disabled={disabled}
+                    className="w-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-mono text-white rounded focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Safety & Circuit Breaker Thresholds */}
+          <div className="pt-2 border-t border-slate-800 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+              <span>Safety Circuit Breakers</span>
+            </div>
             
-            {(protocol === 'UDP' || protocol === 'GAME_UDP') && (
-              <div>
-                <label className="block text-slate-400 mb-1">Packet Payload Size (Bytes)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] text-slate-400">
+                  Abort if Error Rate Exceeds ({errorThreshold}%)
+                </label>
                 <input
                   type="number"
+                  min="5"
+                  max="100"
+                  value={errorThreshold}
+                  onChange={(e) => setErrorThreshold(parseFloat(e.target.value) || 50)}
                   disabled={disabled}
-                  min={32}
-                  max={4096}
-                  value={packetSize}
-                  onChange={(e) => setPacketSize(parseInt(e.target.value) || 256)}
-                  className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-cyan-500"
+                  className="w-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-mono text-white rounded focus:outline-none focus:border-blue-500"
                 />
-                <span className="text-[10px] text-slate-500">Range: 32 - 4,096 bytes</span>
               </div>
-            )}
 
-            {protocol === 'GAME_UDP' && (
-              <div>
-                <label className="block text-slate-400 mb-1">Game Simulation Tick (Hz)</label>
-                <select
-                  disabled={disabled}
-                  value={gameTickHz}
-                  onChange={(e) => setGameTickHz(parseInt(e.target.value))}
-                  className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-cyan-500"
-                >
-                  <option value={20}>20 Hz (Battle Royale / MMO)</option>
-                  <option value={30}>30 Hz (Console Multiplayer)</option>
-                  <option value={60}>60 Hz (Standard Competitive)</option>
-                  <option value={128}>128 Hz (Pro Tournament / CS-style)</option>
-                </select>
-              </div>
-            )}
-
-            {protocol === 'WEBSOCKET' && (
-              <div>
-                <label className="block text-slate-400 mb-1">WebSocket URL Path</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] text-slate-400">
+                  Abort if P95 Latency Exceeds ({latencyThreshold}ms)
+                </label>
                 <input
-                  type="text"
+                  type="number"
+                  min="100"
+                  max="30000"
+                  step="500"
+                  value={latencyThreshold}
+                  onChange={(e) => setLatencyThreshold(parseFloat(e.target.value) || 5000)}
                   disabled={disabled}
-                  value={wsPath}
-                  onChange={(e) => setWsPath(e.target.value)}
-                  placeholder="/"
-                  className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg px-3 py-2 text-slate-200 outline-none focus:border-cyan-500"
+                  className="w-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-mono text-white rounded focus:outline-none focus:border-blue-500"
                 />
               </div>
-            )}
-
-            <div>
-              <label className="block text-slate-400 mb-1 flex items-center justify-between">
-                <span>Auto-Cutoff Error %</span>
-                <span className="text-amber-400">{errorThreshold}%</span>
-              </label>
-              <input
-                type="range"
-                disabled={disabled}
-                min={10}
-                max={90}
-                value={errorThreshold}
-                onChange={(e) => setErrorThreshold(parseInt(e.target.value))}
-                className="w-full accent-amber-500"
-              />
-              <span className="text-[10px] text-slate-500">Terminates if error % exceeds ceiling</span>
             </div>
-
-            <div>
-              <label className="block text-slate-400 mb-1 flex items-center justify-between">
-                <span>Auto-Cutoff Latency</span>
-                <span className="text-rose-400">{latencyThreshold} ms</span>
-              </label>
-              <input
-                type="range"
-                disabled={disabled}
-                min={500}
-                max={10000}
-                step={500}
-                value={latencyThreshold}
-                onChange={(e) => setLatencyThreshold(parseInt(e.target.value))}
-                className="w-full accent-rose-500"
-              />
-              <span className="text-[10px] text-slate-500">Prevents unmanaged congestion</span>
-            </div>
-
           </div>
 
         </div>

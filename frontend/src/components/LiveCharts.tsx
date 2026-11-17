@@ -29,136 +29,135 @@ interface LiveChartsProps {
 }
 
 export const LiveCharts: React.FC<LiveChartsProps> = ({ history }) => {
+  if (history.length === 0) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 text-center text-xs text-slate-500 font-mono">
+        Telemetry stream idle. Start a workload to render live time-series performance charts.
+      </div>
+    );
+  }
+
   const labels = history.map((s) => `${s.elapsed_sec.toFixed(0)}s`);
 
-  // Chart 1: Latencies
+  // Chart 1: Response Latency (P50, P95, P99)
   const latencyData = {
     labels,
     datasets: [
       {
-        label: 'Avg Latency (ms)',
+        label: 'Average Latency (ms)',
         data: history.map((s) => s.avg_latency_ms),
-        borderColor: '#10b981', // emerald
-        backgroundColor: 'rgba(16, 185, 129, 0.05)',
-        tension: 0.3,
+        borderColor: '#3b82f6', // blue
+        backgroundColor: 'rgba(59, 130, 246, 0.05)',
+        tension: 0.2,
         pointRadius: 0,
-        borderWidth: 2,
+        borderWidth: 1.8,
         fill: true,
       },
       {
-        label: 'P95 Tail (ms)',
+        label: 'P95 Tail Latency (ms)',
         data: history.map((s) => s.p95_latency_ms),
-        borderColor: '#a855f7', // purple
+        borderColor: '#f59e0b', // amber
         backgroundColor: 'transparent',
-        tension: 0.3,
+        tension: 0.2,
         pointRadius: 0,
         borderWidth: 1.8,
-        borderDash: [4, 4],
       },
       {
-        label: 'P99 Tail (ms)',
+        label: 'P99 Latency (ms)',
         data: history.map((s) => s.p99_latency_ms),
-        borderColor: '#f43f5e', // rose
+        borderColor: '#ef4444', // red
         backgroundColor: 'transparent',
-        tension: 0.3,
-        pointRadius: 0,
-        borderWidth: 1.8,
-      },
-      {
-        label: 'Jitter (ms)',
-        data: history.map((s) => s.jitter_ms),
-        borderColor: '#06b6d4', // cyan
-        backgroundColor: 'transparent',
-        tension: 0.3,
+        tension: 0.2,
         pointRadius: 0,
         borderWidth: 1.5,
-      },
+        borderDash: [3, 3],
+      }
     ],
   };
 
-  // Chart 2: Throughput and Traffic Velocity
+  // Chart 2: Throughput Velocity (Generated RPS vs Received RPS)
   const throughputData = {
     labels,
     datasets: [
       {
-        label: 'Operations/Sec (RPS/PPS)',
-        data: history.map((s) => Math.max(s.req_per_sec, s.packets_per_sec)),
-        borderColor: '#00f0ff',
-        backgroundColor: 'rgba(0, 240, 255, 0.08)',
+        label: 'Generated (Outbound RPS)',
+        data: history.map((s) => s.generated_rps),
+        borderColor: '#0284c7', // sky
+        backgroundColor: 'rgba(2, 132, 199, 0.08)',
         yAxisID: 'y',
-        tension: 0.3,
+        tension: 0.2,
         pointRadius: 0,
         borderWidth: 2,
         fill: true,
       },
       {
-        label: 'Throughput (KB/s)',
-        data: history.map((s) => s.throughput_kbps),
-        borderColor: '#818cf8',
+        label: 'Received (Confirmed RPS)',
+        data: history.map((s) => s.received_rps),
+        borderColor: '#10b981', // emerald
         backgroundColor: 'transparent',
-        yAxisID: 'y1',
-        tension: 0.3,
+        yAxisID: 'y',
+        tension: 0.2,
         pointRadius: 0,
         borderWidth: 1.8,
       },
+      {
+        label: 'Throughput (KB/s)',
+        data: history.map((s) => s.throughput_kbps),
+        borderColor: '#6366f1', // indigo
+        backgroundColor: 'transparent',
+        yAxisID: 'y1',
+        tension: 0.2,
+        pointRadius: 0,
+        borderWidth: 1.2,
+        borderDash: [4, 4],
+      }
     ],
   };
 
-  const commonOptions = {
+  const chartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 0 },
-    interaction: {
-      mode: 'index' as const,
-      intersect: false,
-    },
+    animation: false,
     plugins: {
       legend: {
         position: 'top' as const,
         labels: {
           color: '#94a3b8',
-          boxWidth: 12,
-          font: { family: 'JetBrains Mono', size: 11 },
+          font: { size: 10, family: 'Inter, sans-serif' },
+          boxWidth: 10,
+          boxHeight: 10,
         },
       },
       tooltip: {
         backgroundColor: '#0f172a',
         borderColor: '#334155',
         borderWidth: 1,
-        titleColor: '#38bdf8',
-        bodyColor: '#e2e8f0',
-        titleFont: { family: 'JetBrains Mono' },
-        bodyFont: { family: 'JetBrains Mono' },
-      },
+        titleColor: '#f8fafc',
+        bodyColor: '#cbd5e1',
+        titleFont: { size: 11 },
+        bodyFont: { size: 11 },
+      }
     },
     scales: {
       x: {
-        grid: { color: 'rgba(51, 65, 85, 0.2)' },
-        ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+        ticks: { color: '#64748b', font: { size: 9 } },
+        grid: { color: '#1e293b' },
       },
       y: {
-        grid: { color: 'rgba(51, 65, 85, 0.2)' },
-        ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
-        beginAtZero: true,
+        ticks: { color: '#64748b', font: { size: 9 } },
+        grid: { color: '#1e293b' },
       },
     },
   };
 
   const dualAxisOptions = {
-    ...commonOptions,
+    ...chartOptions,
     scales: {
-      ...commonOptions.scales,
-      y: {
-        ...commonOptions.scales.y,
-        position: 'left' as const,
-        title: { display: true, text: 'Ops / sec', color: '#64748b' },
-      },
+      ...chartOptions.scales,
       y1: {
         position: 'right' as const,
+        ticks: { color: '#818cf8', font: { size: 9 } },
         grid: { drawOnChartArea: false },
-        ticks: { color: '#818cf8', font: { family: 'JetBrains Mono', size: 10 } },
-        title: { display: true, text: 'KB/s', color: '#818cf8' },
-        beginAtZero: true,
       },
     },
   };
@@ -166,31 +165,23 @@ export const LiveCharts: React.FC<LiveChartsProps> = ({ history }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Latency Chart */}
-      <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4 shadow-lg flex flex-col h-72">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-mono text-slate-300 font-bold uppercase tracking-wider">
-            Live Round-Trip Latency & Tail Percentiles (P95/P99)
-          </span>
-          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded">
-            Sub-Millisecond Resolution
-          </span>
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2">
+        <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+          <h3 className="text-xs font-semibold text-white">Latency Percentiles (ms)</h3>
+          <span className="text-[11px] font-mono text-slate-400">P50 / P95 / P99 Tail</span>
         </div>
-        <div className="flex-1 w-full min-h-0">
-          <Line data={latencyData} options={commonOptions} />
+        <div className="h-56">
+          <Line data={latencyData} options={chartOptions} />
         </div>
       </div>
 
-      {/* Throughput & RPS Chart */}
-      <div className="bg-cyber-card border border-cyber-border rounded-2xl p-4 shadow-lg flex flex-col h-72">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-mono text-slate-300 font-bold uppercase tracking-wider">
-            Live Traffic Velocity (Ops/Sec) & Throughput (KB/s)
-          </span>
-          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2 py-0.5 rounded">
-            Synchronized Dual Axis
-          </span>
+      {/* Throughput Chart */}
+      <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2">
+        <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+          <h3 className="text-xs font-semibold text-white">Traffic Velocity & Throughput</h3>
+          <span className="text-[11px] font-mono text-slate-400">Generated vs Confirmed RPS</span>
         </div>
-        <div className="flex-1 w-full min-h-0">
+        <div className="h-56">
           <Line data={throughputData} options={dualAxisOptions} />
         </div>
       </div>

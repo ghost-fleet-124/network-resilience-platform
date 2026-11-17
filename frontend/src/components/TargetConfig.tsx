@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Globe, ShieldCheck, ShieldAlert, Sparkles, CheckCircle, AlertCircle, AlertTriangle, Shield, PlusCircle } from 'lucide-react';
+import { Globe, Server, ShieldCheck, ShieldAlert, CheckCircle2, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { Protocol } from '../types';
 
 interface TargetConfigProps {
@@ -27,7 +27,10 @@ export const TargetConfig: React.FC<TargetConfigProps> = ({
   isTesting,
   onOpenScopeModal
 }) => {
-  const isWebsiteMode = protocol === 'HTTP_WEBSITE';
+  const isWebsiteMode = protocol === 'HTTP_WEBSITE' || protocol === 'HTTP' || protocol === 'HTTPS';
+  const [configMode, setConfigMode] = useState<'url' | 'hostPort'>(
+    protocol === 'HTTP_WEBSITE' ? 'url' : 'hostPort'
+  );
 
   const [authStatus, setAuthStatus] = useState<{
     loading: boolean;
@@ -42,39 +45,35 @@ export const TargetConfig: React.FC<TargetConfigProps> = ({
     loading: false,
     authorized: true,
     scope: 'LOCAL_SANDBOX',
-    message: 'Local endpoint authorized for testing.'
+    message: 'Local lab target authorized for testing.'
   });
 
-  // Real-time URL validation for Website mode
+  // URL parsing & validation
   const urlValidation = useMemo(() => {
-    if (!isWebsiteMode) return { valid: true, error: null };
+    if (configMode !== 'url') return { valid: true, error: null };
     const raw = (targetUrl || '').trim();
-    if (!raw) {
-      return { valid: false, error: 'Target URL cannot be empty.' };
-    }
+    if (!raw) return { valid: false, error: 'Target URL cannot be empty.' };
     if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
-      return { valid: false, error: 'Target URL must start with http:// or https:// (e.g. http://127.0.0.1:9003/)' };
+      return { valid: false, error: 'URL must begin with http:// or https:// (e.g. http://127.0.0.1:9003/)' };
     }
     try {
       const u = new URL(raw);
-      if (!u.hostname) {
-        return { valid: false, error: 'Target URL must contain a valid hostname or IP address.' };
-      }
+      if (!u.hostname) return { valid: false, error: 'URL must include a valid hostname or IP address.' };
       return { valid: true, error: null, parsed: u };
     } catch {
-      return { valid: false, error: 'Malformed URL syntax. Please enter a valid URL.' };
+      return { valid: false, error: 'Invalid URL syntax.' };
     }
-  }, [isWebsiteMode, targetUrl]);
+  }, [configMode, targetUrl]);
 
-  // Sync host and port from targetUrl when in Website mode
+  // Sync host & port from targetUrl
   useEffect(() => {
-    if (isWebsiteMode && urlValidation.valid && urlValidation.parsed) {
+    if (configMode === 'url' && urlValidation.valid && urlValidation.parsed) {
       const u = urlValidation.parsed;
       setHost(u.hostname);
       const parsedPort = u.port ? parseInt(u.port) : (u.protocol === 'https:' ? 443 : 80);
       setPort(parsedPort);
     }
-  }, [isWebsiteMode, urlValidation, setHost, setPort]);
+  }, [configMode, urlValidation, setHost, setPort]);
 
   // Verify target authorization whenever host, port, or targetUrl changes
   useEffect(() => {
@@ -93,290 +92,250 @@ export const TargetConfig: React.FC<TargetConfigProps> = ({
             host: effectiveHost,
             port: effectivePort,
             protocol,
-            target_url: isWebsiteMode ? targetUrl : undefined
+            target_url: configMode === 'url' ? targetUrl : undefined
           })
         });
         const data = await res.json();
         if (!cancelled) {
           setAuthStatus({
             loading: false,
-            authorized: data.is_authorized,
-            scope: data.scope,
+            authorized: Boolean(data.is_authorized),
+            scope: data.scope || 'UNKNOWN',
             scope_name: data.scope_name,
             authorized_by: data.authorized_by,
             expires_at: data.expires_at,
-            message: data.message,
+            message: data.message || '',
             rejection_reason: data.rejection_reason
           });
         }
-      } catch (e) {
+      } catch (err: any) {
         if (!cancelled) {
           setAuthStatus({
             loading: false,
             authorized: false,
-            scope: 'UNVERIFIED',
-            message: 'Could not contact verification gateway.'
+            scope: 'ERROR',
+            message: 'Unable to communicate with authorization service.'
           });
         }
       }
     }
 
-    const timer = setTimeout(verify, 300);
+    const timer = setTimeout(verify, 200);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [host, port, protocol, targetUrl, isWebsiteMode, urlValidation]);
+  }, [host, port, targetUrl, protocol, configMode, urlValidation]);
 
-  // Quick sandbox autofill presets
-  const applySandboxTarget = (targetHost: string, targetPort: number, proto: Protocol, url?: string) => {
-    if (isTesting) return;
-    setHost(targetHost);
-    setPort(targetPort);
-    setProtocol(proto);
-    if (url) {
-      setTargetUrl(url);
-    } else if (proto === 'HTTP_WEBSITE') {
-      setTargetUrl(`http://${targetHost}:${targetPort}/`);
+  // Quick preset targets
+  const handleQuickPreset = (preset: { url?: string; host?: string; port?: number; proto: Protocol }) => {
+    if (preset.url) {
+      setConfigMode('url');
+      setTargetUrl(preset.url);
+      setProtocol(preset.proto);
+    } else if (preset.host && preset.port) {
+      setConfigMode('hostPort');
+      setHost(preset.host);
+      setPort(preset.port);
+      setProtocol(preset.proto);
     }
   };
 
-  const handleUrlChange = (val: string) => {
-    setTargetUrl(val);
-  };
-
   return (
-    <div className="bg-cyber-card border border-cyber-border rounded-2xl p-5 shadow-lg relative overflow-hidden">
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-5 space-y-4">
       
-      {/* Top Banner */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-cyan-950/60 border border-cyan-800 flex items-center justify-center text-cyan-400">
-            <Globe className="w-4 h-4" />
+      {/* Card Header & Configuration Mode Switch */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-400 font-mono">Step 1</span>
+            <h2 className="text-sm font-semibold text-white">Target Infrastructure & Scope</h2>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
-              1. Target {isWebsiteMode ? 'Website' : 'Server'} Configuration
-            </h2>
-            <p className="text-xs text-slate-400">
-              {isWebsiteMode
-                ? 'Enter the full website URL (HTTP/HTTPS) of your authorized target web server or API.'
-                : 'Enter the server IP address and listening port you are authorized to test.'}
-            </p>
-          </div>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Specify the destination URL or host for resilience and load verification.
+          </p>
         </div>
 
-        {/* Selected target preview badge & Scope Trigger */}
-        <div className="flex items-center gap-2">
-          {onOpenScopeModal && (
-            <button
-              type="button"
-              onClick={onOpenScopeModal}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-cyan-800/80 text-cyan-300 text-xs font-mono transition-colors cursor-pointer"
-              title="Manage authorized testing scopes (wildcards, domains, subnets)"
-            >
-              <Shield className="w-3 h-3 text-cyan-400" />
-              <span>Scope Registry</span>
-            </button>
-          )}
-
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/60 text-xs font-mono">
-            <span className="text-slate-400">Target:</span>
-            {isWebsiteMode ? (
-              <span className="text-emerald-400 font-bold truncate max-w-xs">{targetUrl || 'http://...'}</span>
-            ) : (
-              <span className="text-cyan-400 font-bold">{protocol.toLowerCase()}://{host || '...'}:{port}</span>
-            )}
-          </div>
+        {/* Mode Selector */}
+        <div className="inline-flex p-0.5 rounded-md bg-slate-800 border border-slate-700 text-xs">
+          <button
+            type="button"
+            disabled={isTesting}
+            onClick={() => {
+              setConfigMode('url');
+              if (protocol !== 'HTTP_WEBSITE' && protocol !== 'HTTP' && protocol !== 'HTTPS') {
+                setProtocol('HTTP_WEBSITE');
+              }
+            }}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+              configMode === 'url'
+                ? 'bg-slate-700 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-blue-400" />
+            Website / URL
+          </button>
+          <button
+            type="button"
+            disabled={isTesting}
+            onClick={() => setConfigMode('hostPort')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+              configMode === 'hostPort'
+                ? 'bg-slate-700 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5 text-slate-400" />
+            Host & Port
+          </button>
         </div>
       </div>
 
-      {/* Input Section */}
-      {isWebsiteMode ? (
-        /* HTTP Website Load Testing: Single Full-Width URL Input without Redundant Port */
-        <div className="space-y-2">
-          <label className="block text-xs font-mono text-slate-300 uppercase flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              Target Website Full URL (HTTP / HTTPS)
-            </span>
-            <span className="text-slate-500 font-sans normal-case text-[11px]">
-              Port & path automatically parsed from URL
-            </span>
+      {/* Target Input Section */}
+      {configMode === 'url' ? (
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-slate-300">
+            Target Destination URL
           </label>
           <div className="relative">
             <input
               type="text"
-              disabled={isTesting}
               value={targetUrl}
-              onChange={(e) => handleUrlChange(e.target.value)}
-              placeholder="http://127.0.0.1:9003/ or https://api.staging.apexgaming.net/match"
-              className={`w-full bg-[#0a0f1d] border ${
-                urlValidation.valid 
-                  ? authStatus.authorized 
-                    ? 'border-slate-700 focus:border-emerald-500' 
-                    : 'border-amber-600 focus:border-amber-500' 
-                  : 'border-rose-600 focus:border-rose-500'
-              } focus:ring-1 focus:ring-emerald-500 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 placeholder-slate-600 transition-all outline-none`}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              disabled={isTesting}
+              placeholder="https://example.com/api/v1/search or http://127.0.0.1:9003/"
+              className={`w-full bg-slate-950 border px-3 py-2 text-xs font-mono text-white rounded-md placeholder-slate-600 focus:outline-none focus:ring-1 transition-colors ${
+                urlValidation.valid
+                  ? 'border-slate-700 focus:border-blue-500 focus:ring-blue-500'
+                  : 'border-rose-700 focus:border-rose-500 focus:ring-rose-500'
+              } disabled:opacity-50`}
             />
-            {urlValidation.valid ? (
-              authStatus.authorized ? (
-                <ShieldCheck className="w-4 h-4 text-emerald-400 absolute right-3.5 top-3" />
-              ) : (
-                <ShieldAlert className="w-4 h-4 text-amber-400 absolute right-3.5 top-3" />
-              )
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3" />
-            )}
           </div>
-
-          {/* Validation Error Message */}
-          {!urlValidation.valid && urlValidation.error && (
-            <div className="flex items-center gap-1.5 text-rose-400 text-xs font-mono px-1">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{urlValidation.error}</span>
-            </div>
-          )}
-
-          {/* Parsed Endpoint Preview */}
-          {urlValidation.valid && urlValidation.parsed && (
-            <div className="flex items-center gap-3 text-[11px] font-mono text-slate-400 px-1">
-              <span>Scheme: <strong className="text-slate-200">{urlValidation.parsed.protocol.replace(':', '').toUpperCase()}</strong></span>
-              <span>Host: <strong className="text-slate-200">{urlValidation.parsed.hostname}</strong></span>
-              <span>Port: <strong className="text-slate-200">{urlValidation.parsed.port || (urlValidation.parsed.protocol === 'https:' ? '443' : '80')}</strong></span>
-              <span>Path: <strong className="text-slate-200">{urlValidation.parsed.pathname || '/'}</strong></span>
-            </div>
+          {urlValidation.error && (
+            <p className="text-[11px] text-rose-400 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              {urlValidation.error}
+            </p>
           )}
         </div>
       ) : (
-        /* Server Protocols (UDP, TCP, WebSocket, Game UDP): Host + Port Inputs */
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          <div className="md:col-span-8">
-            <label className="block text-xs font-mono text-slate-300 uppercase mb-1.5 flex items-center justify-between">
-              <span>Server IP Address or Hostname</span>
-              <span className="text-slate-500 font-sans normal-case text-[11px]">
-                e.g. 127.0.0.1 or api.staging.apexgaming.net
-              </span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="sm:col-span-2 space-y-1.5">
+            <label className="block text-xs font-medium text-slate-300">
+              Host / IP Address / Domain
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                disabled={isTesting}
-                value={host}
-                onChange={(e) => setHost(e.target.value.trim())}
-                placeholder="127.0.0.1"
-                className={`w-full bg-[#0a0f1d] border ${
-                  authStatus.authorized ? 'border-slate-700 focus:border-cyan-500' : 'border-amber-600 focus:border-amber-500'
-                } focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 placeholder-slate-600 transition-all outline-none`}
-              />
-              {authStatus.authorized ? (
-                <ShieldCheck className="w-4 h-4 text-emerald-400 absolute right-3.5 top-3" />
-              ) : (
-                <ShieldAlert className="w-4 h-4 text-amber-400 absolute right-3.5 top-3" />
-              )}
-            </div>
+            <input
+              type="text"
+              value={host}
+              onChange={(e) => setHost(e.target.value)}
+              disabled={isTesting}
+              placeholder="127.0.0.1 or api.staging.example.com"
+              className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-xs font-mono text-white rounded-md placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            />
           </div>
-
-          <div className="md:col-span-4">
-            <label className="block text-xs font-mono text-slate-300 uppercase mb-1.5 flex items-center justify-between">
-              <span>Port Number</span>
-              <span className="text-slate-500 font-sans normal-case text-[11px]">1 - 65535</span>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-300">
+              Port
             </label>
             <input
               type="number"
+              value={port}
+              onChange={(e) => setPort(parseInt(e.target.value) || 80)}
               disabled={isTesting}
               min={1}
               max={65535}
-              value={port}
-              onChange={(e) => setPort(parseInt(e.target.value) || 80)}
-              placeholder="9001"
-              className="w-full bg-[#0a0f1d] border border-slate-700 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 placeholder-slate-600 transition-all outline-none"
+              placeholder="80, 443, 9001"
+              className="w-full bg-slate-950 border border-slate-700 px-3 py-2 text-xs font-mono text-white rounded-md placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
             />
           </div>
         </div>
       )}
 
-      {/* Target Authorization Scope & Verification Status Banner */}
-      <div className={`mt-3.5 p-3 rounded-xl border text-xs flex flex-col gap-2 ${
-        authStatus.authorized 
-          ? 'bg-slate-900/70 border-emerald-800/40 text-slate-300' 
-          : 'bg-amber-950/30 border-amber-800/60 text-amber-200'
+      {/* Quick Targets / Presets */}
+      <div className="flex items-center gap-2 flex-wrap text-xs pt-1">
+        <span className="text-[11px] text-slate-400">Quick Targets:</span>
+        <button
+          type="button"
+          onClick={() => handleQuickPreset({ url: 'http://127.0.0.1:9003/search', proto: 'HTTP_WEBSITE' })}
+          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono transition-colors cursor-pointer"
+        >
+          Mock HTTP (9003)
+        </button>
+        <button
+          type="button"
+          onClick={() => handleQuickPreset({ url: 'https://api.staging.apexgaming.net/v1/health', proto: 'HTTP_WEBSITE' })}
+          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono transition-colors cursor-pointer"
+        >
+          Staging Scope (Apex)
+        </button>
+        <button
+          type="button"
+          onClick={() => handleQuickPreset({ host: '127.0.0.1', port: 9001, proto: 'UDP' })}
+          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono transition-colors cursor-pointer"
+        >
+          Mock UDP (9001)
+        </button>
+        <button
+          type="button"
+          onClick={() => handleQuickPreset({ host: '127.0.0.1', port: 9002, proto: 'TCP' })}
+          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] font-mono transition-colors cursor-pointer"
+        >
+          Mock TCP (9002)
+        </button>
+      </div>
+
+      {/* Target Authorization Scope Card */}
+      <div className={`rounded-md p-3 border text-xs transition-colors ${
+        authStatus.authorized
+          ? 'bg-slate-950/80 border-slate-800'
+          : 'bg-rose-950/20 border-rose-900/60'
       }`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
             {authStatus.authorized ? (
-              <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <ShieldAlert className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
             )}
-            <span className={`font-mono font-bold ${authStatus.authorized ? 'text-emerald-300' : 'text-amber-300'}`}>
-              [{authStatus.scope}] {authStatus.message}
-            </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`font-semibold ${authStatus.authorized ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  {authStatus.authorized ? 'Target Covered by Authorized Scope' : 'Target Authorization Required'}
+                </span>
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                  {authStatus.scope}
+                </span>
+                {authStatus.scope_name && (
+                  <span className="text-[11px] text-slate-400">
+                    &bull; {authStatus.scope_name}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                {authStatus.message}
+              </p>
+
+              {authStatus.rejection_reason && (
+                <p className="text-[11px] text-rose-300/90 font-mono mt-1">
+                  Reason: {authStatus.rejection_reason}
+                </p>
+              )}
+            </div>
           </div>
 
-          {!authStatus.authorized && onOpenScopeModal && (
+          {onOpenScopeModal && !authStatus.authorized && (
             <button
               type="button"
               onClick={onOpenScopeModal}
-              className="px-2.5 py-1 rounded-lg bg-amber-900/60 hover:bg-amber-800 text-amber-200 border border-amber-600 text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs flex-shrink-0 transition-colors cursor-pointer"
             >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>Register Scope for this Target</span>
+              <span>Scope Registry</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-
-        {/* Clear Explanation of Rejection if not authorized */}
-        {!authStatus.authorized && authStatus.rejection_reason && (
-          <div className="pl-6 text-[11px] text-amber-300/80 font-sans">
-            <strong>Reason:</strong> {authStatus.rejection_reason}
-          </div>
-        )}
-      </div>
-
-      {/* Quick sandbox 1-click presets */}
-      <div className="mt-3 flex items-center gap-1.5 flex-wrap text-xs pt-1 border-t border-slate-800/60">
-        <span className="text-[11px] text-slate-400 font-mono">Quick Sandbox:</span>
-        <button
-          type="button"
-          disabled={isTesting}
-          onClick={() => applySandboxTarget('127.0.0.1', 9003, 'HTTP_WEBSITE', 'http://127.0.0.1:9003/')}
-          className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-[11px] font-mono border border-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
-        >
-          <Globe className="w-3 h-3" /> Mock Website (9003)
-        </button>
-        <button
-          type="button"
-          disabled={isTesting}
-          onClick={() => applySandboxTarget('127.0.0.1', 9005, 'GAME_UDP')}
-          className="px-2 py-0.5 rounded bg-cyan-950 hover:bg-cyan-900 text-cyan-200 text-[11px] font-mono border border-cyan-800 transition-colors flex items-center gap-1 cursor-pointer"
-        >
-          <Sparkles className="w-2.5 h-2.5" /> 60Hz Game (9005)
-        </button>
-        <button
-          type="button"
-          disabled={isTesting}
-          onClick={() => applySandboxTarget('api.staging.apexgaming.net', 443, 'HTTPS')}
-          className="px-2 py-0.5 rounded bg-purple-950/70 hover:bg-purple-900 text-purple-300 text-[11px] font-mono border border-purple-700 transition-colors flex items-center gap-1 cursor-pointer"
-        >
-          <Shield className="w-3 h-3" /> Approved Scope (*.staging.apexgaming.net)
-        </button>
-        <button
-          type="button"
-          disabled={isTesting}
-          onClick={() => applySandboxTarget('127.0.0.1', 9001, 'UDP')}
-          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-mono border border-slate-700 transition-colors cursor-pointer"
-        >
-          UDP Tick (9001)
-        </button>
-        <button
-          type="button"
-          disabled={isTesting}
-          onClick={() => applySandboxTarget('127.0.0.1', 9002, 'TCP')}
-          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-mono border border-slate-700 transition-colors cursor-pointer"
-        >
-          TCP Echo (9002)
-        </button>
       </div>
 
     </div>

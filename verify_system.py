@@ -135,6 +135,74 @@ def test_api():
         log(f"  Website Scorecard: Success Rate={web_rep['website_analysis']['successful_request_pct']}%, Max Sustainable RPS={web_rep['website_analysis']['max_sustainable_rps']:,.0f}")
         log(f"  Website Summary: {web_rep['website_analysis']['summary']}")
 
+    time.sleep(0.5)
+
+    log("Verifying HTTP POST with JSON body (/api/cart)...")
+    post_json_payload = json.dumps({
+        "host": "127.0.0.1",
+        "port": 9003,
+        "protocol": "HTTP_WEBSITE",
+        "intensity": "LOW",
+        "duration_sec": 3,
+        "target_url": "http://127.0.0.1:9003/api/cart",
+        "http_method": "POST",
+        "http_body_type": "json",
+        "http_payload": '{"items": [101, 102], "user": "verifier"}',
+        "http_virtual_users": 10,
+        "safety_confirmation_acknowledged": True
+    }).encode("utf-8")
+    req = urllib.request.Request(f"{base_url}/api/tests/start", data=post_json_payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        post_info = json.loads(resp.read().decode())
+        log(f"  POST JSON workload started: status={post_info['status']}")
+
+    time.sleep(1.2)
+    req = urllib.request.Request(f"{base_url}/api/tests/status")
+    with urllib.request.urlopen(req) as resp:
+        post_status = json.loads(resp.read().decode())
+        snap = post_status.get("snapshot")
+        assert snap is not None
+        assert snap.get("status_codes", {}).get("201", 0) > 0
+        log(f"  ✓ POST JSON Received 201 Created responses: {snap['status_codes']['201']}")
+
+    req = urllib.request.Request(f"{base_url}/api/tests/stop", data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        json.loads(resp.read().decode())
+
+    time.sleep(0.5)
+
+    log("Verifying HTTP POST with Form-Encoded body (/api/auth)...")
+    post_form_payload = json.dumps({
+        "host": "127.0.0.1",
+        "port": 9003,
+        "protocol": "HTTP_WEBSITE",
+        "intensity": "LOW",
+        "duration_sec": 3,
+        "target_url": "http://127.0.0.1:9003/api/auth",
+        "http_method": "POST",
+        "http_body_type": "form",
+        "http_payload": "username=admin_audit&action=login&token=sec_7781",
+        "http_virtual_users": 10,
+        "safety_confirmation_acknowledged": True
+    }).encode("utf-8")
+    req = urllib.request.Request(f"{base_url}/api/tests/start", data=post_form_payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        form_info = json.loads(resp.read().decode())
+        log(f"  POST Form workload started: status={form_info['status']}")
+
+    time.sleep(1.2)
+    req = urllib.request.Request(f"{base_url}/api/tests/status")
+    with urllib.request.urlopen(req) as resp:
+        form_status = json.loads(resp.read().decode())
+        snap = form_status.get("snapshot")
+        assert snap is not None
+        assert snap.get("status_codes", {}).get("200", 0) > 0
+        log(f"  ✓ POST Form Received 200 OK responses: {snap['status_codes']['200']}")
+
+    req = urllib.request.Request(f"{base_url}/api/tests/stop", data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req) as resp:
+        json.loads(resp.read().decode())
+
     log("Verifying Prometheus /metrics exporter...")
     req = urllib.request.Request(f"{base_url}/metrics")
     with urllib.request.urlopen(req) as resp:
