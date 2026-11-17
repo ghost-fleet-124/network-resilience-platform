@@ -39,14 +39,22 @@ ENV HOSTNAME="0.0.0.0"
 
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 nextjs
 
-# Copy runtime assets
+# Copy runtime assets and dependencies
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/node_modules ./node_modules
+
+# 1. Copy standalone build into /app (for 'node server.js')
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# 2. Also copy standalone build into /app/.next/standalone (for 'node /app/.next/standalone/server.js')
+COPY --from=builder /app/.next/standalone /app/.next/standalone
+COPY --from=builder /app/.next/static /app/.next/standalone/.next/static
+COPY --from=builder /app/public /app/.next/standalone/public
 
 # Ensure nextjs user owns /app for sqlite db file writing and cache
 RUN chown -R nextjs:nodejs /app

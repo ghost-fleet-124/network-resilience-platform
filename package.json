@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/prepare-database.js && next build && node scripts/copy-standalone.js",
-    "start": "node scripts/entrypoint.js",
+    "start": "node server.js",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
