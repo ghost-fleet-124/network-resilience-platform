@@ -7,17 +7,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        enterprise: {
-          bg: "#0b0f19",
-          surface: "#111827",
-          subtle: "#1f2937",
-          border: "#1e293b",
-          hover: "#283548",
-          primary: "#2563eb",
-          primaryHover: "#1d4ed8",
-          success: "#10b981",
-          warning: "#f59e0b",
-          danger: "#ef4444"
+        brand: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
         }
       },
       fontFamily: {

@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple, Optional
 from app.config import GLOBAL_SAFETY_LIMITS, PRESET_CONFIGS
 from app.models import (
     IntensityPresetEnum,
+    ProtocolEnum,
     TestStartRequest,
     PresetConfig,
     TargetVerificationResponse,
@@ -115,18 +116,103 @@ class SafetyGovernor:
                 s.status = ScopeStatusEnum.EXPIRED
         return list(self._scopes.values())
 
+    def _normalize_host_or_pattern(self, raw: str) -> Tuple[str, Optional[int]]:
+        """
+        Normalizes user-entered targets (URLs, domains, IPs, patterns) into a clean
+        comparable hostname/pattern and optional extracted port.
+        """
+        raw = raw.strip().lower()
+        if not raw:
+            return ("", None)
+
+        # If it contains scheme, parse URL
+        if raw.startswith("http://") or raw.startswith("https://"):
+            from urllib.parse import urlparse
+            try:
+                p = urlparse(raw)
+                h = p.hostname or ""
+                port = p.port or (443 if p.scheme == "https" else 80)
+                return (h, port)
+            except Exception:
+                pass
+
+        # Strip any paths or queries if not CIDR
+        if "/" in raw and not any(raw.endswith(m) for m in ("/8", "/16", "/24", "/32")):
+            raw = raw.split("/")[0]
+
+        # Strip port if present (and not IPv6 or CIDR)
+        if ":" in raw and not raw.startswith("["):
+            parts = raw.split(":")
+            if len(parts) == 2 and parts[1].isdigit():
+                return (parts[0], int(parts[1]))
+
+        return (raw, None)
+
+    def _matches_pattern(self, host: str, pattern: str) -> bool:
+        h_clean, _ = self._normalize_host_or_pattern(host)
+        p_clean, _ = self._normalize_host_or_pattern(pattern)
+
+        if not h_clean or not p_clean:
+            return False
+
+        # Exact match
+        if h_clean == p_clean:
+            return True
+
+        # Wildcard match (*.apexgaming.net matches sub.apexgaming.net and apexgaming.net)
+        if p_clean.startswith("*."):
+            root = p_clean[2:]
+            return h_clean.endswith("." + root) or h_clean == root
+
+        # Apex / www equivalence (e.g. abes.ac.in matches www.abes.ac.in)
+        if h_clean == f"www.{p_clean}" or p_clean == f"www.{h_clean}":
+            return True
+
+        # CIDR IP subnet match (e.g. 198.51.100.0/24)
+        if "/" in p_clean:
+            try:
+                target_ip = ipaddress.ip_address(h_clean)
+                network = ipaddress.ip_network(p_clean, strict=False)
+                return target_ip in network
+            except ValueError:
+                return False
+
+        # Direct IP string match
+        try:
+            target_ip = ipaddress.ip_address(h_clean)
+            pat_ip = ipaddress.ip_address(p_clean)
+            return target_ip == pat_ip
+        except ValueError:
+            return False
+
     def register_scope(self, req: RegisterScopeRequest) -> ApprovedScope:
-        scope_id = f"scope_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        scope_id = f"target_{int(time.time())}_{uuid.uuid4().hex[:6]}"
         now = time.time()
         valid_until = now + (max(1, req.valid_days) * 86400)
         
+        # Cleanly extract normalized pattern and port
+        cleaned_pattern, extracted_port = self._normalize_host_or_pattern(req.target_pattern)
+        if not cleaned_pattern:
+            cleaned_pattern = req.target_pattern.strip().lower()
+
+        allowed_ports = list(req.allowed_ports) if req.allowed_ports else []
+        if extracted_port and extracted_port not in allowed_ports:
+            allowed_ports.append(extracted_port)
+            
+        # Default to standard ports if none provided to avoid accidental user blockages
+        if not allowed_ports:
+            allowed_ports = [80, 443, 8000, 8080, 8443, 9000, 9001, 9002, 9003, 9004, 9005]
+
         scope = ApprovedScope(
             scope_id=scope_id,
+            target_id=scope_id,
             name=req.name.strip(),
             organization=req.organization.strip(),
             authorized_by=req.authorized_by.strip(),
-            target_pattern=req.target_pattern.strip().lower(),
-            allowed_ports=req.allowed_ports,
+            target_pattern=cleaned_pattern,
+            host=cleaned_pattern,
+            target_url=req.target_url or (f"http://{cleaned_pattern}/" if not cleaned_pattern.startswith("*") else None),
+            allowed_ports=allowed_ports,
             max_rps_allowed=req.max_rps_allowed,
             valid_from=now,
             valid_until=valid_until,
@@ -160,72 +246,107 @@ class SafetyGovernor:
             return scope
         return None
 
-    def _matches_pattern(self, host: str, pattern: str) -> bool:
-        host_clean = host.strip().lower()
-        pat_clean = pattern.strip().lower()
-
-        # Wildcard match (e.g. *.apexgaming.net)
-        if pat_clean.startswith("*."):
-            root = pat_clean[2:]
-            return host_clean.endswith("." + root) or host_clean == root
-
-        # Exact match
-        if host_clean == pat_clean:
-            return True
-
-        # CIDR IP subnet match (e.g. 198.51.100.0/24)
-        if "/" in pat_clean:
-            try:
-                target_ip = ipaddress.ip_address(host_clean)
-                network = ipaddress.ip_network(pat_clean, strict=False)
-                return target_ip in network
-            except ValueError:
-                return False
-
-        # Direct IP string match
-        try:
-            target_ip = ipaddress.ip_address(host_clean)
-            pat_ip = ipaddress.ip_address(pat_clean)
-            return target_ip == pat_ip
-        except ValueError:
-            return False
-
     async def verify_target_authorization(
         self,
         host: str,
-        port: int
+        port: int,
+        target_id: Optional[str] = None,
+        protocol: Optional[ProtocolEnum] = None
     ) -> TargetVerificationResponse:
         """
         Evaluates whether a target is approved for resilience testing.
         1. Local loopback / sandbox -> Always authorized.
-        2. RFC1918 private network -> Authorized for internal laboratory testing.
-        3. Approved Organization Scopes -> Evaluates registered wildcard domains, CIDRs, or specific hosts.
-        4. Expired scopes -> Explicitly rejected.
-        5. Unmatched external targets -> Clearly rejected with actionable reason.
+        2. Explicit Target ID lookup -> Matches registered target record directly.
+        3. Pattern matching against registered organization scopes.
+        4. Expired / revoked / port-restricted targets -> Explicitly rejected with clear reason.
+        5. RFC1918 private network -> Authorized for internal laboratory testing.
+        6. Unmatched external targets -> Clearly rejected with actionable guidance.
         """
-        host_clean = host.strip().lower()
+        host_clean, extracted_port = self._normalize_host_or_pattern(host)
+        effective_port = port or extracted_port or 80
         now = time.time()
 
         # 1. Local loopback sandbox check
-        if host_clean in self._approved_local_hosts:
+        if host_clean in self._approved_local_hosts or not host_clean:
             return TargetVerificationResponse(
-                host=host_clean,
-                port=port,
+                host=host_clean or "127.0.0.1",
+                port=effective_port,
                 is_authorized=True,
                 scope="LOCAL_SANDBOX",
+                target_id="LOCAL_SANDBOX",
                 scope_name="Local Loopback Sandbox",
                 message="Target is a verified local testing endpoint (safe for offline testing).",
                 verification_method="LOCAL_LOOPBACK"
             )
 
-        # 2. Match against registered organization scopes (Explicit scopes take precedence)
+        # 2. Check if a specific target_id (or scope_id) was provided by the user
+        if target_id and target_id in self._scopes:
+            target = self._scopes[target_id]
+            if target.status == ScopeStatusEnum.REVOKED:
+                return TargetVerificationResponse(
+                    host=host_clean,
+                    port=effective_port,
+                    is_authorized=False,
+                    scope=target.scope_id,
+                    target_id=target.scope_id,
+                    scope_name=target.name,
+                    authorized_by=target.authorized_by,
+                    expires_at=target.valid_until,
+                    message=f"Target '{target.name}' has been administratively REVOKED.",
+                    rejection_reason="This target was revoked. Reactivate or register a new target in Authorized Targets.",
+                    verification_method="REVOKED_TARGET"
+                )
+            if target.status == ScopeStatusEnum.EXPIRED or now > target.valid_until:
+                expiry_str = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(target.valid_until))
+                return TargetVerificationResponse(
+                    host=host_clean,
+                    port=effective_port,
+                    is_authorized=False,
+                    scope=target.scope_id,
+                    target_id=target.scope_id,
+                    scope_name=target.name,
+                    authorized_by=target.authorized_by,
+                    expires_at=target.valid_until,
+                    message=f"Target '{target.name}' authorization EXPIRED on {expiry_str}.",
+                    rejection_reason="Testing authorization for this target has expired. An administrator must renew the target.",
+                    verification_method="EXPIRED_SCOPE"
+                )
+            if target.allowed_ports and effective_port not in target.allowed_ports:
+                return TargetVerificationResponse(
+                    host=host_clean,
+                    port=effective_port,
+                    is_authorized=False,
+                    scope=target.scope_id,
+                    target_id=target.scope_id,
+                    scope_name=target.name,
+                    authorized_by=target.authorized_by,
+                    expires_at=target.valid_until,
+                    message=f"Port {effective_port} is not in the approved ports list for target '{target.name}'.",
+                    rejection_reason=f"Target port {effective_port} is restricted. Scope allowed ports: {target.allowed_ports}.",
+                    verification_method="PORT_DISALLOWED"
+                )
+            # Target ID matches and is active!
+            expiry_str = time.strftime("%Y-%m-%d", time.gmtime(target.valid_until))
+            return TargetVerificationResponse(
+                host=host_clean,
+                port=effective_port,
+                is_authorized=True,
+                scope=target.scope_id,
+                target_id=target.scope_id,
+                scope_name=target.name,
+                authorized_by=target.authorized_by,
+                expires_at=target.valid_until,
+                message=f"Target covered by authorized target: '{target.name}' (Authorized by {target.authorized_by}, valid through {expiry_str}).",
+                verification_method="TARGET_ID_MATCH"
+            )
+
+        # 3. Match against registered organization scopes (by pattern / domain / IP)
         matched_scope: Optional[ApprovedScope] = None
         expired_scope: Optional[ApprovedScope] = None
         port_disallowed_scope: Optional[ApprovedScope] = None
 
         for scope in self._scopes.values():
             if self._matches_pattern(host_clean, scope.target_pattern):
-                # Check status and expiration
                 if scope.status == ScopeStatusEnum.REVOKED:
                     continue
                 
@@ -234,12 +355,10 @@ class SafetyGovernor:
                     expired_scope = scope
                     continue
 
-                # Check port restriction if configured
-                if scope.allowed_ports and port not in scope.allowed_ports:
+                if scope.allowed_ports and effective_port not in scope.allowed_ports:
                     port_disallowed_scope = scope
                     continue
 
-                # Valid, active scope match!
                 matched_scope = scope
                 break
 
@@ -247,9 +366,10 @@ class SafetyGovernor:
             expiry_str = time.strftime("%Y-%m-%d", time.gmtime(matched_scope.valid_until))
             return TargetVerificationResponse(
                 host=host_clean,
-                port=port,
+                port=effective_port,
                 is_authorized=True,
                 scope=matched_scope.scope_id,
+                target_id=matched_scope.scope_id,
                 scope_name=matched_scope.name,
                 authorized_by=matched_scope.authorized_by,
                 expires_at=matched_scope.valid_until,

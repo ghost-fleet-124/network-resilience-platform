@@ -16,13 +16,20 @@ router = APIRouter(prefix="/api/targets", tags=["targets"])
 
 @router.post("/verify", response_model=TargetVerificationResponse)
 async def verify_target(req: TargetVerificationRequest):
-    return await safety_governor.verify_target_authorization(req.host, req.port)
+    return await safety_governor.verify_target_authorization(
+        req.host,
+        req.port,
+        target_id=req.target_id,
+        protocol=req.protocol
+    )
 
 @router.get("/scopes", response_model=List[ApprovedScope])
+@router.get("/authorized", response_model=List[ApprovedScope])
 async def list_authorized_scopes():
     return safety_governor.get_all_scopes()
 
 @router.post("/scopes", response_model=ApprovedScope)
+@router.post("/authorized", response_model=ApprovedScope)
 async def register_authorized_scope(req: RegisterScopeRequest):
     if not req.terms_acknowledged:
         raise HTTPException(

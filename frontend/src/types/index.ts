@@ -186,6 +186,8 @@ export interface TargetVerification {
 }
 
 export interface TestStartRequest {
+  target_id?: string;
+  scope_id?: string;
   host: string;
   port: number;
   protocol: Protocol;

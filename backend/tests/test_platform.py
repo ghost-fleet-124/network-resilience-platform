@@ -255,3 +255,62 @@ async def test_all_tests_recorded_with_audit_trail():
     assert "action" in latest
     assert "timestamp" in latest
     assert "details" in latest
+
+@pytest.mark.asyncio
+async def test_register_website_target_and_select_in_test_lifecycle():
+    from app.core.safety_governor import safety_governor
+    from app.core.orchestrator import orchestrator
+    from app.models import RegisterScopeRequest, TestStartRequest, ProtocolEnum, IntensityPresetEnum
+    import asyncio
+    
+    # 1. Register a website target with full URL
+    reg_req = RegisterScopeRequest(
+        name="Private Enterprise Portal Staging",
+        organization="Private Enterprise Tech Lab",
+        authorized_by="security-team@internal-resilience.net",
+        target_pattern="https://staging-portal.internal-resilience.net:8443",
+        valid_days=60,
+        max_rps_allowed=500000,
+        terms_acknowledged=True
+    )
+    scope = safety_governor.register_scope(reg_req)
+    assert scope is not None
+    assert scope.scope_id is not None
+    assert scope.target_id == scope.scope_id
+    assert 8443 in scope.allowed_ports
+    assert scope.target_pattern == "staging-portal.internal-resilience.net"
+
+    # 2. Verify target lookup by target_id
+    verif = await safety_governor.verify_target_authorization(
+        host="staging-portal.internal-resilience.net",
+        port=8443,
+        target_id=scope.scope_id
+    )
+    assert verif.is_authorized is True
+    assert verif.target_id == scope.scope_id
+    assert verif.scope == scope.scope_id
+
+    # 3. Verify target lookup by domain even if target_id is omitted
+    verif_by_host = await safety_governor.verify_target_authorization(
+        host="staging-portal.internal-resilience.net",
+        port=8443
+    )
+    assert verif_by_host.is_authorized is True
+    assert verif_by_host.target_id is not None
+    assert "enterprise" in verif_by_host.scope_name.lower()
+
+    # 4. Verify that apex/www equivalence works
+    verif_www = await safety_governor.verify_target_authorization(
+        host="www.staging-portal.internal-resilience.net",
+        port=8443
+    )
+    assert verif_www.is_authorized is True
+
+    # 5. Verify that out-of-scope external targets are rejected with clear explanation
+    unauth = await safety_governor.verify_target_authorization(
+        host="unapproved-random-website.com",
+        port=443
+    )
+    assert unauth.is_authorized is False
+    assert "UNAUTHORIZED_EXTERNAL_TARGET" in unauth.scope
+    assert "not registered" in unauth.rejection_reason

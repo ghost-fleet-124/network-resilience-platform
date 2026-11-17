@@ -60,7 +60,13 @@ class Orchestrator:
                     req.http_path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
 
             # 1. Target Authorization Verification
-            auth_res = await safety_governor.verify_target_authorization(req.host, req.port)
+            target_id = req.target_id or req.scope_id
+            auth_res = await safety_governor.verify_target_authorization(
+                req.host,
+                req.port,
+                target_id=target_id,
+                protocol=req.protocol
+            )
             if not auth_res.is_authorized:
                 err_msg = f"Target authorization failed: {auth_res.message}"
                 if auth_res.rejection_reason:

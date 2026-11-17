@@ -60,6 +60,7 @@ class ClusterNode(BaseModel):
     current_ram_pct: float = 0.0
 
 class TargetVerificationRequest(BaseModel):
+    target_id: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
     protocol: ProtocolEnum = ProtocolEnum.HTTP
@@ -82,7 +83,7 @@ class TargetVerificationRequest(BaseModel):
                 data["port"] = p.port or (443 if p.scheme == "https" else 80)
             except Exception:
                 pass
-        if not data.get("host"):
+        if not data.get("host") and not data.get("target_id"):
             data["host"] = "127.0.0.1"
         if data.get("port") is None:
             data["port"] = 80
@@ -95,10 +96,13 @@ class ScopeStatusEnum(str, Enum):
 
 class ApprovedScope(BaseModel):
     scope_id: str
+    target_id: Optional[str] = None # Alias for scope_id
     name: str
     organization: str
     authorized_by: str
     target_pattern: str # Domain wildcard, exact domain, CIDR, or IP
+    host: Optional[str] = None
+    target_url: Optional[str] = None
     allowed_ports: Optional[List[int]] = None
     max_rps_allowed: int = 1000000
     valid_from: float = Field(default_factory=time.time)
@@ -108,11 +112,20 @@ class ApprovedScope(BaseModel):
     notes: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
 
+    @model_validator(mode="before")
+    @classmethod
+    def populate_target_id(cls, data: Any):
+        if isinstance(data, dict):
+            if not data.get("target_id") and data.get("scope_id"):
+                data["target_id"] = data["scope_id"]
+        return data
+
 class RegisterScopeRequest(BaseModel):
     name: str
     organization: str
     authorized_by: str
     target_pattern: str
+    target_url: Optional[str] = None
     allowed_ports: Optional[List[int]] = None
     valid_days: int = 30
     max_rps_allowed: int = 1000000
@@ -124,6 +137,7 @@ class TargetVerificationResponse(BaseModel):
     port: int
     is_authorized: bool
     scope: str
+    target_id: Optional[str] = None
     message: str
     scope_name: Optional[str] = None
     authorized_by: Optional[str] = None
@@ -132,6 +146,8 @@ class TargetVerificationResponse(BaseModel):
     verification_method: Optional[str] = None
 
 class TestStartRequest(BaseModel):
+    target_id: Optional[str] = None
+    scope_id: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
     protocol: ProtocolEnum = ProtocolEnum.HTTP

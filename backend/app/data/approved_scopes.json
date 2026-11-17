@@ -1,10 +1,13 @@
 [
   {
     "scope_id": "scope_apex_staging",
+    "target_id": "scope_apex_staging",
     "name": "Apex Championship Staging & Internal Services",
     "organization": "Apex Interactive Corp",
     "authorized_by": "ciso-security@apexgaming.net",
     "target_pattern": "*.staging.apexgaming.net",
+    "host": null,
+    "target_url": null,
     "allowed_ports": [
       80,
       443,
@@ -27,10 +30,13 @@
   },
   {
     "scope_id": "scope_tournament_subnet",
+    "target_id": "scope_tournament_subnet",
     "name": "Dedicated Tournament Ingress Subnet",
     "organization": "Apex Global Infrastructure",
     "authorized_by": "infra-lead@apexgaming.net",
     "target_pattern": "198.51.100.0/24",
+    "host": null,
+    "target_url": null,
     "allowed_ports": [
       80,
       443,
@@ -50,10 +56,13 @@
   },
   {
     "scope_id": "scope_legacy_game_2025",
+    "target_id": "scope_legacy_game_2025",
     "name": "Legacy Tournament 2025 Test Bed (Expired)",
     "organization": "Legacy Tournament Ops",
     "authorized_by": "ops-2025@apexgaming.net",
     "target_pattern": "legacy.tournament-2025.com",
+    "host": null,
+    "target_url": null,
     "allowed_ports": [
       80,
       443
@@ -68,10 +77,13 @@
   },
   {
     "scope_id": "scope_1794773535_91f83a",
+    "target_id": "scope_1794773535_91f83a",
     "name": "ABES Academic & Campus Server Ingress",
     "organization": "ABES Engineering College",
     "authorized_by": "network-admin@abes.ac.in",
     "target_pattern": "*.abes.ac.in",
+    "host": null,
+    "target_url": null,
     "allowed_ports": [
       80,
       443
@@ -83,5 +95,105 @@
     "status": "ACTIVE",
     "notes": null,
     "created_at": 1794773535.3529553
+  },
+  {
+    "scope_id": "target_1794891567_cd8619",
+    "target_id": "target_1794891567_cd8619",
+    "name": "Private Enterprise Portal Staging",
+    "organization": "Private Enterprise Tech Lab",
+    "authorized_by": "security-team@internal-resilience.net",
+    "target_pattern": "staging-portal.internal-resilience.net",
+    "host": "staging-portal.internal-resilience.net",
+    "target_url": "http://staging-portal.internal-resilience.net/",
+    "allowed_ports": [
+      8443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794891567.3116648,
+    "valid_until": 1800075567.3116648,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794891567.3118975
+  },
+  {
+    "scope_id": "target_1794891600_7dbb4e",
+    "target_id": "target_1794891600_7dbb4e",
+    "name": "Private Enterprise Portal Staging",
+    "organization": "Private Enterprise Tech Lab",
+    "authorized_by": "security-team@internal-resilience.net",
+    "target_pattern": "staging-portal.internal-resilience.net",
+    "host": "staging-portal.internal-resilience.net",
+    "target_url": "http://staging-portal.internal-resilience.net/",
+    "allowed_ports": [
+      8443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794891600.9425235,
+    "valid_until": 1800075600.9425235,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794891600.942688
+  },
+  {
+    "scope_id": "target_1794895701_78c61f",
+    "target_id": "target_1794895701_78c61f",
+    "name": "Private Enterprise Portal Staging",
+    "organization": "Private Enterprise Tech Lab",
+    "authorized_by": "security-team@internal-resilience.net",
+    "target_pattern": "staging-portal.internal-resilience.net",
+    "host": "staging-portal.internal-resilience.net",
+    "target_url": "http://staging-portal.internal-resilience.net/",
+    "allowed_ports": [
+      8443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794895701.6589947,
+    "valid_until": 1800079701.6589947,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794895701.6590407
+  },
+  {
+    "scope_id": "target_1794895743_12c645",
+    "target_id": "target_1794895743_12c645",
+    "name": "Private Enterprise Portal Staging",
+    "organization": "Private Enterprise Tech Lab",
+    "authorized_by": "security-team@internal-resilience.net",
+    "target_pattern": "staging-portal.internal-resilience.net",
+    "host": "staging-portal.internal-resilience.net",
+    "target_url": "http://staging-portal.internal-resilience.net/",
+    "allowed_ports": [
+      8443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794895743.9208622,
+    "valid_until": 1800079743.9208622,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794895743.9209793
+  },
+  {
+    "scope_id": "target_1794896122_09f7a2",
+    "target_id": "target_1794896122_09f7a2",
+    "name": "Private Enterprise Portal Staging",
+    "organization": "Private Enterprise Tech Lab",
+    "authorized_by": "security-team@internal-resilience.net",
+    "target_pattern": "staging-portal.internal-resilience.net",
+    "host": "staging-portal.internal-resilience.net",
+    "target_url": "http://staging-portal.internal-resilience.net/",
+    "allowed_ports": [
+      8443
+    ],
+    "max_rps_allowed": 500000,
+    "valid_from": 1794896122.4370737,
+    "valid_until": 1800080122.4370737,
+    "terms_acknowledged": true,
+    "status": "ACTIVE",
+    "notes": null,
+    "created_at": 1794896122.437948
   }
 ]

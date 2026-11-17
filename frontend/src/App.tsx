@@ -1,246 +1,139 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Header } from './components/Header';
-import { TargetConfig } from './components/TargetConfig';
-import { ProtocolSelect } from './components/ProtocolSelect';
-import { HttpMethodConfig } from './components/HttpMethodConfig';
-import { IntensitySelect } from './components/IntensitySelect';
-import { AdvancedSettings } from './components/AdvancedSettings';
-import { ControlBar } from './components/ControlBar';
-import { MetricsGrid } from './components/MetricsGrid';
-import { LiveCharts } from './components/LiveCharts';
-import { PacketStream } from './components/PacketStream';
-import { ReportModal } from './components/ReportModal';
-import { HistoryDrawer } from './components/HistoryDrawer';
-import { MockServerControl } from './components/MockServerControl';
-import { ClusterManagerModal } from './components/ClusterManagerModal';
-import { HighIntensityConfirmationModal } from './components/HighIntensityConfirmationModal';
-import { ScopeManagerModal } from './components/ScopeManagerModal';
-import { TermsModal } from './components/TermsModal';
-import { PrivacyPolicyModal } from './components/PrivacyPolicyModal';
+import { Sidebar, NavView } from './components/Sidebar';
+import { OverviewView } from './views/OverviewView';
+import { NewTestView } from './views/NewTestView';
+import { AuthorizedTargetsView } from './views/AuthorizedTargetsView';
+import { TestHistoryView } from './views/TestHistoryView';
+import { ReportsView } from './views/ReportsView';
+import { SettingsView } from './views/SettingsView';
 import { useLiveTelemetry } from './hooks/useLiveTelemetry';
-import { Protocol, IntensityPreset, TestReport, PresetDetails, TestStatus } from './types';
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { 
+  ApprovedScope, 
+  TestReport, 
+  PresetDetails, 
+  TestStatus,
+  MetricSnapshot
+} from './types';
+import { 
+  AlertCircle, 
+  CheckCircle2, 
+  X, 
+  Menu, 
+  Activity, 
+  Radio, 
+  Server,
+  Bell
+} from 'lucide-react';
 
 export function App() {
-  // Navigation State
-  const [activeView, setActiveView] = useState<'console' | 'scopes' | 'reports' | 'cluster'>('console');
+  // Navigation View State
+  const [activeView, setActiveView] = useState<NavView>('overview');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Target & Protocol State
-  const [host, setHost] = useState<string>('127.0.0.1');
-  const [port, setPort] = useState<number>(9003);
-  const [targetUrl, setTargetUrl] = useState<string>('http://127.0.0.1:9003/search');
-  const [protocol, setProtocol] = useState<Protocol>('HTTP_WEBSITE');
-  const [intensity, setIntensity] = useState<IntensityPreset>('LOW');
-
-  // HTTP Specific Configuration (Priority 3)
-  const [httpMethod, setHttpMethod] = useState<string>('GET');
-  const [httpPath, setHttpPath] = useState<string>('/search');
-  const [httpQueryParams, setHttpQueryParams] = useState<string>('q=resilience_test&limit=25');
-  const [httpBodyType, setBodyType] = useState<'json' | 'form' | 'raw'>('json');
-  const [httpPayload, setHttpPayload] = useState<string>(
-    JSON.stringify({ query: 'resilience_test', item_id: 101, quantity: 1 }, null, 2)
-  );
-  const [httpHeaders, setHttpHeaders] = useState<string>('X-Source: ResilienceOps-Client');
-  const [httpFollowRedirects, setHttpFollowRedirects] = useState<boolean>(true);
-  const [httpKeepAlive, setHttpKeepAlive] = useState<boolean>(true);
-  const [httpTimeoutSec, setHttpTimeoutSec] = useState<number>(5.0);
-  const [httpVirtualUsers, setHttpVirtualUsers] = useState<number>(50);
-
-  // Workload Timings (Ramp-up, Sustained, Ramp-down)
-  const [rampUpSec, setRampUpSec] = useState<number>(3);
-  const [sustainedSec, setSustainedSec] = useState<number>(20);
-  const [rampDownSec, setRampDownSec] = useState<number>(3);
-
-  // Transport Specific Configuration
-  const [packetSize, setPacketSize] = useState<number>(256);
-  const [gameTickHz, setGameTickHz] = useState<number>(60);
-  const [wsPath, setWsPath] = useState<string>('/');
-  const [errorThreshold, setErrorThreshold] = useState<number>(50);
-  const [latencyThreshold, setLatencyThreshold] = useState<number>(5000);
-
-  // Platform Presets Info & Cluster State
+  // Global Platform Data
+  const [scopes, setScopes] = useState<ApprovedScope[]>([]);
+  const [reports, setReports] = useState<TestReport[]>([]);
   const [presetsInfo, setPresetsInfo] = useState<Record<string, PresetDetails>>({});
-  const [clusterCapacityRps, setClusterCapacityRps] = useState<number>(100000);
-
-  // Mock Sandbox State
   const [mockRunning, setMockRunning] = useState<boolean>(true);
   const [mockPorts, setMockPorts] = useState<Record<string, number>>({});
   const [mockLoading, setMockLoading] = useState<boolean>(false);
 
-  // Modals
-  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
-  const [mockModalOpen, setMockModalOpen] = useState<boolean>(false);
-  const [clusterModalOpen, setClusterModalOpen] = useState<boolean>(false);
-  const [scopeModalOpen, setScopeModalOpen] = useState<boolean>(false);
-  const [termsModalOpen, setTermsModalOpen] = useState<boolean>(false);
-  const [privacyModalOpen, setPrivacyModalOpen] = useState<boolean>(false);
-  const [confirmHighIntensityOpen, setConfirmHighIntensityOpen] = useState<boolean>(false);
-  const [activeReport, setActiveReport] = useState<TestReport | null>(null);
+  // View Selections
+  const [selectedReport, setSelectedReport] = useState<TestReport | null>(null);
+  const [initialTargetForTest, setInitialTargetForTest] = useState<ApprovedScope | null>(null);
 
-  // Notifications
+  // Notification Banner
   const [notification, setNotification] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
-  const [isStarting, setIsStarting] = useState<boolean>(false);
 
-  // Callback when a test completes
-  const handleTestFinished = useCallback((report: TestReport) => {
-    setActiveReport(report);
-    setNotification({
-      type: 'success',
-      message: `Test run finished with SLA verdict: ${report.sla_verdict} (Peak Achieved: ${report.peak_generated_rps.toLocaleString()} RPS)`
-    });
+  // Refresh Scopes
+  const fetchScopes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/targets/scopes');
+      if (res.ok) {
+        const data = await res.json();
+        setScopes(data);
+      }
+    } catch (err) {
+      console.error('Error fetching scopes:', err);
+    }
   }, []);
 
+  // Refresh Reports
+  const fetchReports = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reports');
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data);
+      }
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+    }
+  }, []);
+
+  // Completion Callback from Telemetry
+  const handleTestFinished = useCallback((report: TestReport) => {
+    setSelectedReport(report);
+    fetchReports();
+    setNotification({
+      type: 'success',
+      message: `Test run finished with SLA verdict: ${report.sla_verdict} (Peak: ${report.peak_generated_rps.toLocaleString()} RPS)`
+    });
+  }, [fetchReports]);
+
   // Telemetry Hook
-  const { currentSnapshot, chartHistory, isConnected, clearHistory } = useLiveTelemetry(handleTestFinished);
+  const { currentSnapshot, isConnected, clearHistory } = useLiveTelemetry(handleTestFinished);
   const currentStatus: TestStatus = currentSnapshot ? currentSnapshot.status : 'IDLE';
   const isTesting = currentStatus === 'RUNNING' || currentStatus === 'PAUSED' || currentStatus === 'INITIALIZING';
 
-  // Fetch presets metadata and cluster info on mount
+  // Initial Data Load
   useEffect(() => {
+    fetchScopes();
+    fetchReports();
+
     fetch('/api/targets/presets')
-      .then((res) => res.json())
-      .then((data) => setPresetsInfo(data))
-      .catch((err) => console.error('Failed to load presets:', err));
+      .then(res => res.json())
+      .then(data => setPresetsInfo(data))
+      .catch(err => console.error('Failed to load presets:', err));
 
     fetch('/api/targets/mock-status')
-      .then((res) => res.json())
-      .then((data) => {
+      .then(res => res.json())
+      .then(data => {
         setMockRunning(data.is_running);
         setMockPorts(data.ports || {});
       })
-      .catch((err) => console.error('Failed to load mock status:', err));
+      .catch(err => console.error('Failed to load mock status:', err));
+  }, [fetchScopes, fetchReports]);
 
-    fetch('/api/targets/cluster/nodes')
-      .then((res) => res.json())
-      .then((data) => setClusterCapacityRps(data.total_capacity_rps || 100000))
-      .catch((err) => console.error('Failed to load cluster:', err));
-  }, []);
-
-  // Auto-sync port if protocol or localhost changes
-  const handleSelectProtocol = (p: Protocol) => {
-    setProtocol(p);
-    if (p === 'HTTP_WEBSITE' || p === 'HTTP' || p === 'HTTPS') {
-      if (!targetUrl || targetUrl.trim() === '') {
-        setTargetUrl('http://127.0.0.1:9003/search');
-      }
-      try {
-        const u = new URL(targetUrl || 'http://127.0.0.1:9003/search');
-        setHost(u.hostname);
-        setPort(u.port ? parseInt(u.port) : (u.protocol === 'https:' ? 443 : 80));
-      } catch {
-        setHost('127.0.0.1');
-        setPort(9003);
-      }
-    } else if (host === '127.0.0.1' || host === 'localhost') {
-      if (p === 'UDP') setPort(9001);
-      else if (p === 'TCP') setPort(9002);
-      else if (p === 'WEBSOCKET') setPort(9004);
-      else if (p === 'GAME_UDP') setPort(9005);
-    }
-  };
-
-  // Launch pre-flight check
-  const handleInitiateStartTest = () => {
-    const preset = presetsInfo[intensity];
-    const targetRps = preset?.target_rps || 80000;
-    const isLocal = host === '127.0.0.1' || host === 'localhost' || host === '0.0.0.0';
-
-    if (targetRps >= 500000 && !isLocal) {
-      setConfirmHighIntensityOpen(true);
-      return;
-    }
-
-    executeStartTest(true);
-  };
-
-  // Start test API call
-  const executeStartTest = async (safetyConfirmed: boolean) => {
-    setNotification(null);
-    setIsStarting(true);
+  // Operational Handlers
+  const handleStartTest = async (payload: any) => {
     clearHistory();
-
-    const parsedHeaders: Record<string, string> = {};
-    if (httpHeaders.trim()) {
-      httpHeaders.split('\n').forEach(line => {
-        const idx = line.indexOf(':');
-        if (idx > 0) {
-          const k = line.substring(0, idx).trim();
-          const v = line.substring(idx + 1).trim();
-          if (k && v) parsedHeaders[k] = v;
-        }
-      });
+    setNotification(null);
+    const res = await fetch('/api/tests/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to start workload');
     }
-
-    const isHttp = protocol === 'HTTP_WEBSITE' || protocol === 'HTTP' || protocol === 'HTTPS';
-    
-    // Construct effective URL if query parameters are set
-    let effectiveUrl = targetUrl;
-    if (isHttp && httpQueryParams.trim() && targetUrl) {
-      const separator = targetUrl.includes('?') ? '&' : '?';
-      if (!targetUrl.includes(httpQueryParams.trim())) {
-        effectiveUrl = `${targetUrl}${separator}${httpQueryParams.trim()}`;
-      }
-    }
-
-    const payload = {
-      host,
-      port,
-      protocol,
-      intensity,
-      target_url: isHttp ? effectiveUrl : undefined,
-      duration_sec: rampUpSec + sustainedSec + rampDownSec,
-      ramp_up_sec: rampUpSec,
-      sustained_sec: sustainedSec,
-      ramp_down_sec: rampDownSec,
-      packet_size_bytes: packetSize,
-      game_tick_hz: gameTickHz,
-      http_method: httpMethod,
-      http_path: isHttp ? httpPath : undefined,
-      http_payload: httpPayload,
-      http_body_type: httpBodyType,
-      http_content_type: httpBodyType === 'json' ? 'application/json' : httpBodyType === 'form' ? 'application/x-www-form-urlencoded' : 'text/plain',
-      http_headers: Object.keys(parsedHeaders).length > 0 ? parsedHeaders : undefined,
-      http_follow_redirects: httpFollowRedirects,
-      http_keep_alive: httpKeepAlive,
-      http_timeout_sec: httpTimeoutSec,
-      http_virtual_users: httpVirtualUsers,
-      ws_path: wsPath,
-      safety_confirmation_acknowledged: safetyConfirmed,
-      emergency_threshold_error_pct: errorThreshold,
-      emergency_threshold_latency_ms: latencyThreshold
-    };
-
-    try {
-      const res = await fetch('/api/tests/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || 'Failed to start workload');
-      }
-      setNotification({
-        type: 'success',
-        message: `Workload dispatched against ${host}:${port} (${protocol} ${isHttp ? `[${httpMethod}]` : ''} - Target: ${data.target_rps?.toLocaleString()} RPS)`
-      });
-    } catch (err: any) {
-      setNotification({
-        type: 'error',
-        message: err.message || 'Error launching workload'
-      });
-    } finally {
-      setIsStarting(false);
-    }
+    setNotification({
+      type: 'success',
+      message: `Test workload dispatched against ${payload.host}:${payload.port} (${payload.protocol})`
+    });
+    fetchReports();
   };
 
-  // Operational Control Handlers
   const handleStopTest = async () => {
     try {
       const res = await fetch('/api/tests/stop', { method: 'POST' });
       const data = await res.json();
-      if (data.report) setActiveReport(data.report);
-    } catch (err: any) {
+      if (data.report) {
+        setSelectedReport(data.report);
+        fetchReports();
+      }
+    } catch (err) {
       console.error('Stop error:', err);
     }
   };
@@ -249,7 +142,7 @@ export function App() {
     try {
       await fetch('/api/tests/pause', { method: 'POST' });
     } catch (err) {
-      console.error(err);
+      console.error('Pause error:', err);
     }
   };
 
@@ -257,7 +150,7 @@ export function App() {
     try {
       await fetch('/api/tests/resume', { method: 'POST' });
     } catch (err) {
-      console.error(err);
+      console.error('Resume error:', err);
     }
   };
 
@@ -265,17 +158,19 @@ export function App() {
     try {
       const res = await fetch('/api/tests/emergency-stop', { method: 'POST' });
       const data = await res.json();
-      if (data.report) setActiveReport(data.report);
+      if (data.report) {
+        setSelectedReport(data.report);
+        fetchReports();
+      }
       setNotification({
         type: 'error',
         message: 'EMERGENCY SHUTDOWN: All worker sockets terminated immediately.'
       });
     } catch (err) {
-      console.error(err);
+      console.error('Emergency stop error:', err);
     }
   };
 
-  // Mock server management
   const handleStartMocks = async () => {
     setMockLoading(true);
     try {
@@ -298,268 +193,220 @@ export function App() {
     }
   };
 
-  const totalCalculatedDuration = rampUpSec + sustainedSec + rampDownSec;
-  const isHttpFamily = protocol === 'HTTP' || protocol === 'HTTPS' || protocol === 'HTTP_WEBSITE';
+  // Nav actions
+  const navigateToNewTestWithTarget = (target?: ApprovedScope) => {
+    setInitialTargetForTest(target || null);
+    setActiveView('new-test');
+  };
+
+  const navigateToReportView = (report: TestReport) => {
+    setSelectedReport(report);
+    setActiveView('reports');
+  };
+
+  const viewTitles: Record<NavView, string> = {
+    'overview': 'Overview',
+    'new-test': 'New Test',
+    'targets': 'Authorized Targets',
+    'history': 'Test History',
+    'reports': 'Reports & SLA Analysis',
+    'settings': 'Settings & Infrastructure'
+  };
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans antialiased">
       
-      {/* Top Enterprise Header */}
-      <Header
-        isConnected={isConnected}
-        snapshot={currentSnapshot}
-        onOpenHistory={() => setHistoryOpen(true)}
-        onToggleMockModal={() => setMockModalOpen(true)}
-        onToggleClusterModal={() => setClusterModalOpen(true)}
-        onToggleScopeModal={() => setScopeModalOpen(true)}
-        onToggleTermsModal={() => setTermsModalOpen(true)}
-        onTogglePrivacyModal={() => setPrivacyModalOpen(true)}
-        mockRunning={mockRunning}
-        activeView={activeView}
-        onChangeView={setActiveView}
-      />
+      {/* Desktop Enterprise Sidebar */}
+      <div className="hidden md:block shrink-0">
+        <Sidebar
+          activeView={activeView}
+          setActiveView={setActiveView}
+          isConnected={isConnected}
+          isTesting={isTesting}
+          currentStatus={currentStatus}
+          mockRunning={mockRunning}
+          activeTestCount={isTesting ? 1 : 0}
+        />
+      </div>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-64 bg-white h-full shadow-xl">
+            <Sidebar
+              activeView={activeView}
+              setActiveView={(view) => {
+                setActiveView(view);
+                setMobileMenuOpen(false);
+              }}
+              isConnected={isConnected}
+              isTesting={isTesting}
+              currentStatus={currentStatus}
+              mockRunning={mockRunning}
+              activeTestCount={isTesting ? 1 : 0}
+            />
+          </div>
+          <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
         
-        {/* Alerts / Notification Bar */}
+        {/* Top Header / App Bar */}
+        <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 md:hidden cursor-pointer"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-900">{viewTitles[activeView]}</span>
+            </div>
+          </div>
+
+          {/* Quick Engine & Telemetry Status Badges */}
+          <div className="flex items-center gap-3 text-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-50 border border-slate-200 text-slate-600 font-mono text-[11px]">
+              <span className={`w-2 h-2 rounded-full ${isTesting ? 'bg-emerald-500 animate-ping' : 'bg-slate-400'}`} />
+              <span className="font-semibold">{currentStatus}</span>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500">
+              <Radio className="w-3 h-3 text-slate-400" />
+              <span className={isConnected ? 'text-emerald-600 font-medium' : 'text-rose-600 font-medium'}>
+                {isConnected ? 'Telemetry Active' : 'Offline'}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Global Notification Banner */}
         {notification && (
-          <div
-            className={`p-3 rounded-md border flex items-center justify-between text-xs transition-colors ${
-              notification.type === 'error'
-                ? 'bg-rose-950/40 border-rose-800/80 text-rose-300'
-                : 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
-            }`}
-          >
+          <div className={`px-4 sm:px-6 py-2.5 border-b text-xs flex items-center justify-between transition-colors ${
+            notification.type === 'error'
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
             <div className="flex items-center gap-2">
               {notification.type === 'error' ? (
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               ) : (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               )}
               <span className="font-medium">{notification.message}</span>
             </div>
             <button
               onClick={() => setNotification(null)}
-              className="text-slate-400 hover:text-white cursor-pointer ml-4 p-1"
+              className="text-slate-400 hover:text-slate-700 cursor-pointer ml-4 p-0.5"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Guided Two-Column Enterprise Console Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          
-          {/* Left Column (5 Cols on large): Guided Configuration & Workload Controls */}
-          <div className="lg:col-span-5 space-y-4">
-            
-            {/* Step 1: Target Infrastructure & Scope Verification */}
-            <TargetConfig
-              host={host}
-              setHost={setHost}
-              port={port}
-              setPort={setPort}
-              targetUrl={targetUrl}
-              setTargetUrl={setTargetUrl}
-              protocol={protocol}
-              setProtocol={handleSelectProtocol}
-              isTesting={isTesting}
-              onOpenScopeModal={() => setScopeModalOpen(true)}
+        {/* Main Body View */}
+        <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
+          {activeView === 'overview' && (
+            <OverviewView
+              reports={reports}
+              scopes={scopes}
+              currentSnapshot={currentSnapshot}
+              onNavigateToNewTest={navigateToNewTestWithTarget}
+              onSelectReport={navigateToReportView}
+              onNavigateToTargets={() => setActiveView('targets')}
             />
+          )}
 
-            {/* Step 2: Protocol Selection */}
-            <ProtocolSelect
-              selectedProtocol={protocol}
-              onSelect={handleSelectProtocol}
-              disabled={isTesting}
-            />
-
-            {/* Step 3: HTTP Method & Payload Specification (Front and Center for HTTP/Web) */}
-            {isHttpFamily && (
-              <HttpMethodConfig
-                method={httpMethod}
-                setMethod={setHttpMethod}
-                path={httpPath}
-                setPath={setHttpPath}
-                payload={httpPayload}
-                setPayload={setHttpPayload}
-                bodyType={httpBodyType}
-                setBodyType={setBodyType}
-                headers={httpHeaders}
-                setHeaders={setHttpHeaders}
-                queryParams={httpQueryParams}
-                setQueryParams={setHttpQueryParams}
-                timeoutSec={httpTimeoutSec}
-                setTimeoutSec={setHttpTimeoutSec}
-                virtualUsers={httpVirtualUsers}
-                setVirtualUsers={setHttpVirtualUsers}
-                disabled={isTesting}
-              />
-            )}
-
-            {/* Step 4: Workload Intensity & Numerical RPS Presets */}
-            <IntensitySelect
-              selectedIntensity={intensity}
-              onSelect={setIntensity}
-              disabled={isTesting}
+          {activeView === 'new-test' && (
+            <NewTestView
+              scopes={scopes}
               presetsInfo={presetsInfo}
-            />
-
-            {/* Step 5: Advanced Timing & Protocol Tuning (Collapsed by Default) */}
-            <AdvancedSettings
-              protocol={protocol}
-              packetSize={packetSize}
-              setPacketSize={setPacketSize}
-              gameTickHz={gameTickHz}
-              setGameTickHz={setGameTickHz}
-              httpFollowRedirects={httpFollowRedirects}
-              setHttpFollowRedirects={setHttpFollowRedirects}
-              httpKeepAlive={httpKeepAlive}
-              setHttpKeepAlive={setHttpKeepAlive}
-              wsPath={wsPath}
-              setWsPath={setWsPath}
-              errorThreshold={errorThreshold}
-              setErrorThreshold={setErrorThreshold}
-              latencyThreshold={latencyThreshold}
-              setLatencyThreshold={setLatencyThreshold}
-              rampUpSec={rampUpSec}
-              setRampUpSec={setRampUpSec}
-              sustainedSec={sustainedSec}
-              setSustainedSec={setSustainedSec}
-              rampDownSec={rampDownSec}
-              setRampDownSec={setRampDownSec}
-              disabled={isTesting}
-            />
-
-            {/* Primary Action Control Bar */}
-            <ControlBar
-              status={currentStatus}
-              elapsedSec={currentSnapshot?.elapsed_sec || 0}
-              durationSec={totalCalculatedDuration}
-              onStart={handleInitiateStartTest}
-              onStop={handleStopTest}
-              onPause={handlePauseTest}
-              onResume={handleResumeTest}
+              currentSnapshot={currentSnapshot}
+              onStartTest={handleStartTest}
+              onStopTest={handleStopTest}
+              onPauseTest={handlePauseTest}
+              onResumeTest={handleResumeTest}
               onEmergencyStop={handleEmergencyStop}
-              isStarting={isStarting}
+              onNavigateToTargets={() => setActiveView('targets')}
+              onViewReport={navigateToReportView}
+              initialTarget={initialTargetForTest}
             />
+          )}
 
-          </div>
-
-          {/* Right Column (7 Cols on large): Live Observability, Metrics & Telemetry Grid */}
-          <div className="lg:col-span-7 space-y-4">
-            
-            {/* Real-time KPI Grid & Lifecycle Accounting */}
-            <MetricsGrid snapshot={currentSnapshot} />
-
-            {/* Live Time-Series Charts */}
-            <LiveCharts history={chartHistory} />
-
-            {/* System Resources & Execution Topology */}
-            <PacketStream
-              snapshot={currentSnapshot}
-              host={host}
-              port={port}
-              protocol={protocol}
+          {activeView === 'targets' && (
+            <AuthorizedTargetsView
+              scopes={scopes}
+              onRefreshScopes={fetchScopes}
+              onSelectTargetForTest={navigateToNewTestWithTarget}
             />
+          )}
 
+          {activeView === 'history' && (
+            <TestHistoryView
+              reports={reports}
+              onSelectReport={navigateToReportView}
+              onRerunTest={(rep) => {
+                const matchedScope = scopes.find(s => s.target_pattern.includes(rep.target_host));
+                navigateToNewTestWithTarget(matchedScope);
+              }}
+            />
+          )}
+
+          {activeView === 'reports' && (
+            <ReportsView
+              reports={reports}
+              selectedReport={selectedReport}
+              onSelectReport={setSelectedReport}
+              onNavigateToHistory={() => setActiveView('history')}
+            />
+          )}
+
+          {activeView === 'settings' && (
+            <SettingsView
+              mockRunning={mockRunning}
+              mockPorts={mockPorts}
+              onStartMocks={handleStartMocks}
+              onStopMocks={handleStopMocks}
+              mockLoading={mockLoading}
+            />
+          )}
+        </main>
+
+        {/* Minimal Enterprise Footer */}
+        <footer className="border-t border-slate-200 py-3 px-6 text-center text-xs text-slate-500 bg-white">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setActiveView('settings')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Acceptable Use Policy
+              </button>
+              <span>&bull;</span>
+              <button 
+                onClick={() => setActiveView('settings')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Privacy & Data Retention
+              </button>
+              <span>&bull;</span>
+              <button 
+                onClick={() => setActiveView('targets')}
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Authorized Scope Registry
+              </button>
+            </div>
+            <div>
+              ResilienceOps Platform &bull; Private Infrastructure Load Testing &bull; 2026
+            </div>
           </div>
+        </footer>
 
-        </div>
-
-      </main>
-
-      {/* Enterprise Minimal Footer */}
-      <footer className="border-t border-slate-800 py-3.5 px-6 text-center text-xs text-slate-500 font-mono mt-auto">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              onClick={() => setTermsModalOpen(true)}
-              className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-            >
-              Acceptable Use Policy
-            </button>
-            <span>&bull;</span>
-            <button
-              onClick={() => setPrivacyModalOpen(true)}
-              className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-            >
-              Privacy Policy & Data Retention
-            </button>
-            <span>&bull;</span>
-            <button
-              onClick={() => setScopeModalOpen(true)}
-              className="text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-            >
-              Authorized Scope Registry
-            </button>
-          </div>
-          <div>
-            ResilienceOps Platform &bull; Scalable up to 5,000,000 Requested RPS &bull; 2026
-          </div>
-        </div>
-      </footer>
-
-      {/* Modal Dialogs */}
-      <ScopeManagerModal
-        isOpen={scopeModalOpen}
-        onClose={() => setScopeModalOpen(false)}
-        onApplyTarget={(val) => {
-          if (protocol === 'HTTP_WEBSITE' || protocol === 'HTTP' || protocol === 'HTTPS') {
-            setTargetUrl(val.startsWith('http') ? val : `https://${val}/`);
-          } else {
-            setHost(val.replace('https://', '').replace('http://', '').split('/')[0]);
-          }
-        }}
-      />
-
-      <TermsModal
-        isOpen={termsModalOpen}
-        onClose={() => setTermsModalOpen(false)}
-      />
-
-      <PrivacyPolicyModal
-        isOpen={privacyModalOpen}
-        onClose={() => setPrivacyModalOpen(false)}
-      />
-
-      <ReportModal
-        report={activeReport}
-        onClose={() => setActiveReport(null)}
-      />
-
-      <HistoryDrawer
-        isOpen={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        onSelectReport={(rep) => setActiveReport(rep)}
-      />
-
-      <MockServerControl
-        isOpen={mockModalOpen}
-        onClose={() => setMockModalOpen(false)}
-        isRunning={mockRunning}
-        ports={mockPorts}
-        onStart={handleStartMocks}
-        onStop={handleStopMocks}
-        loading={mockLoading}
-      />
-
-      <ClusterManagerModal
-        isOpen={clusterModalOpen}
-        onClose={() => setClusterModalOpen(false)}
-      />
-
-      <HighIntensityConfirmationModal
-        isOpen={confirmHighIntensityOpen}
-        onClose={() => setConfirmHighIntensityOpen(false)}
-        onConfirm={() => executeStartTest(true)}
-        targetHost={host}
-        targetPort={port}
-        intensity={intensity}
-        presetInfo={presetsInfo[intensity]}
-        clusterCapacityRps={clusterCapacityRps}
-      />
+      </div>
 
     </div>
   );
