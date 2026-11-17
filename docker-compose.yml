@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Primary BLACKSHIELD Next.js Defensive Application
+  blackshield-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blackshield-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://blackshield_admin:SecOps_Shield_2026!@blackshield-db:5432/blackshield_db?schema=public
+      - JWT_SECRET=blackshield-production-jwt-security-key-cyber-soc-ops
+      - K6_PATH=k6
+      - MAX_TEST_CONCURRENCY_VUS=200
+      - MAX_TEST_DURATION_SECONDS=300
+      - MAX_TEST_TARGET_RPS=5000
+      - ALLOWED_TARGET_PATTERNS=^(https?:\/\/)?(localhost|127\.0\.0\.1|::1|blackshield-web|.*\.internal\.local|.*\.defense\.test)(:\d+)?(\/.*)?$
+    depends_on:
+      blackshield-db:
+        condition: service_healthy
+    networks:
+      - blackshield-net
+
+  # Secure PostgreSQL Storage Tier
+  blackshield-db:
+    image: postgres:16-alpine
+    container_name: blackshield-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: blackshield_admin
+      POSTGRES_PASSWORD: SecOps_Shield_2026!
+      POSTGRES_DB: blackshield_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackshield_admin -d blackshield_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blackshield-net
+
+  # Controlled Load Testing Engine (Grafana k6)
+  blackshield-k6:
+    image: grafana/k6:latest
+    container_name: blackshield-k6
+    volumes:
+      - ./k6-scripts:/scripts
+    entrypoint: ["k6", "version"]
+    networks:
+      - blackshield-net
+
+networks:
+  blackshield-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local

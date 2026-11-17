@@ -1,1 +1,1 @@
-web: python run_backend.py
+web: node .next/standalone/server.js

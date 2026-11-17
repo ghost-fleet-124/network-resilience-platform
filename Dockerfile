@@ -1,46 +1,55 @@
-# Multi-stage build for Antigravity Network Load Testing Platform
+# Multi-stage production Dockerfile for BLACKSHIELD Cyber Defense Platform
+FROM node:20-alpine AS base
 
-# Stage 1: Build React Frontend
-FROM node:20-alpine AS frontend-builder
-WORKDIR /app/frontend
-
-COPY frontend/package*.json ./
-RUN npm install
-
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2: Production Python Runtime
-FROM python:3.11-slim
+# Install system dependencies
+RUN apk add --no-cache libc6-compat curl bash
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000 \
-    HOST=0.0.0.0
+# Stage 1: Install dependencies
+FROM base AS deps
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
+RUN npm install
 
-# Install build dependencies for psutil
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Stage 2: Build the Next.js application
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# Install python dependencies
-COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# Generate Prisma Client (supports SQLite and PostgreSQL via DATABASE_URL)
+RUN npx prisma generate
 
-# Copy backend application source
-COPY backend/ ./backend/
-COPY run_backend.py ./
-COPY run_mock_servers.py ./
-COPY worker_agent.py ./
-COPY docs/ ./docs/
-COPY README.md ./
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN npm run build
 
-# Copy built frontend assets from builder stage
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+# Stage 3: Production runner
+FROM base AS runner
+WORKDIR /app
 
-# Expose HTTP/WS port and optional mock target ports
-EXPOSE 8000 9001 9002 9003 9004 9005
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-CMD ["python", "run_backend.py"]
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy standalone build and static assets
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Ensure nextjs user owns /app for sqlite db file writing and cache
+RUN chown -R nextjs:nodejs /app
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]

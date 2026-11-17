@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #070B19;
+  --foreground: #F1F5F9;
+  --card: #0E1A38;
+  --border: #1A2C59;
+}
+
+body {
+  background-color: #070B19;
+  color: #F1F5F9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom dark scrollbar for SOC dashboard */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #070B19;
+}
+::-webkit-scrollbar-thumb {
+  background: #1A2C59;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00F0FF;
+}
+
+/* Cyber Terminal & HUD Accents */
+.cyber-panel {
+  background-color: #0E1A38;
+  border: 1px solid #1A2C59;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 20px -2px rgba(5, 8, 17, 0.7);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cyber-panel:hover {
+  border-color: #254182;
+}
+
+.cyber-glow-cyan {
+  box-shadow: 0 0 15px -3px rgba(0, 240, 255, 0.25);
+  border-color: #00F0FF !important;
+}
+
+.cyber-glow-red {
+  box-shadow: 0 0 15px -3px rgba(239, 68, 68, 0.35);
+  border-color: #EF4444 !important;
+}
+
+.cyber-glow-emerald {
+  box-shadow: 0 0 15px -3px rgba(16, 185, 129, 0.25);
+  border-color: #10B981 !important;
+}
+
+/* Telemetry Grid Background Pattern */
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(26, 44, 89, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(26, 44, 89, 0.25) 1px, transparent 1px);
+}
+
+/* Print Stylesheet for Forensic PDF Exports */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .cyber-panel {
+    border: 1px solid #cccccc !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+}

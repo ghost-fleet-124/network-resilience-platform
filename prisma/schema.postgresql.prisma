@@ -1,0 +1,128 @@
+// PostgreSQL schema for BLACKSHIELD Docker / Production deployment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  name        String
+  role        String     @default("ANALYST")
+  badgeNumber String     @unique
+  avatarUrl   String?
+  createdAt   DateTime   @default(now())
+  auditLogs   AuditLog[]
+}
+
+model TargetService {
+  id               String     @id @default(uuid())
+  name             String
+  slug             String     @unique
+  endpoint         String
+  category         String
+  status           String     @default("HEALTHY")
+  latencyMs        Int        @default(45)
+  uptimePercentage Float      @default(99.98)
+  lastChecked      DateTime   @default(now())
+  incidents        Incident[]
+}
+
+model Incident {
+  id                 String        @id @default(uuid())
+  incidentNumber     String        @unique
+  title              String
+  severity           String
+  status             String        @default("ACTIVE")
+  targetServiceId    String
+  targetService      TargetService @relation(fields: [targetServiceId], references: [id])
+  attackVector       String
+  peakRps            Int           @default(0)
+  currentRps         Int           @default(0)
+  detectedAt         DateTime      @default(now())
+  resolvedAt         DateTime?
+  description        String
+  affectedComponents String
+  alerts             ThreatAlert[]
+}
+
+model ThreatAlert {
+  id               String    @id @default(uuid())
+  incidentId       String?
+  incident         Incident? @relation(fields: [incidentId], references: [id])
+  title            String
+  message          String
+  severity         String
+  sourceIp         String
+  targetPath       String
+  anomalyScore     Float     @default(0.0)
+  signatureMatched String?
+  acknowledged     Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+}
+
+model LoadTestRun {
+  id               String    @id @default(uuid())
+  testName         String
+  targetUrl        String
+  vus              Int
+  durationSec      Int
+  targetRps        Int
+  protocol         String    @default("HTTP")
+  status           String    @default("PENDING")
+  peakRps          Int       @default(0)
+  avgLatencyMs     Float     @default(0.0)
+  p95LatencyMs     Float     @default(0.0)
+  errorRate        Float     @default(0.0)
+  emergencyStopped Boolean   @default(false)
+  logs             String    @default("")
+  configJson       String?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+}
+
+model DefensePolicy {
+  id             String   @id @default(uuid())
+  name           String
+  type           String
+  status         String   @default("ACTIVE")
+  priority       Int      @default(1)
+  targetEndpoint String   @default("*")
+  configJson     String
+  appliedCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  userName    String
+  userRole    String
+  action      String
+  resource    String
+  detailsJson String?
+  ipAddress   String   @default("127.0.0.1")
+  status      String   @default("SUCCESS")
+  timestamp   DateTime @default(now())
+}
+
+model TelemetryMetric {
+  id                String   @id @default(uuid())
+  timestamp         DateTime @default(now())
+  cpuUsage          Float
+  ramUsage          Float
+  networkInMbps     Float
+  networkOutMbps    Float
+  ingressRps        Int
+  droppedRps        Int
+  normalRps         Int
+  activeConnections Int
+  threatLevel       Int      @default(3)
+}

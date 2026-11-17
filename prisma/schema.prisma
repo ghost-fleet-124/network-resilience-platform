@@ -1,0 +1,128 @@
+// Prisma schema for BLACKSHIELD Critical Infrastructure Defense Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  name        String
+  role        String     @default("ANALYST") // ADMIN, SOC_LEAD, ANALYST, AUDITOR
+  badgeNumber String     @unique
+  avatarUrl   String?
+  createdAt   DateTime   @default(now())
+  auditLogs   AuditLog[]
+}
+
+model TargetService {
+  id               String     @id @default(uuid())
+  name             String
+  slug             String     @unique
+  endpoint         String
+  category         String     // EMERGENCY_911, FEMA, POWER_GRID, PUBLIC_ALERT, HEALTHCARE
+  status           String     @default("HEALTHY") // HEALTHY, DEGRADED, UNDER_ATTACK, OFFLINE
+  latencyMs        Int        @default(45)
+  uptimePercentage Float      @default(99.98)
+  lastChecked      DateTime   @default(now())
+  incidents        Incident[]
+}
+
+model Incident {
+  id                 String        @id @default(uuid())
+  incidentNumber     String        @unique
+  title              String
+  severity           String        // CRITICAL, HIGH, MEDIUM, LOW
+  status             String        @default("ACTIVE") // ACTIVE, MITIGATING, INVESTIGATING, RESOLVED
+  targetServiceId    String
+  targetService      TargetService @relation(fields: [targetServiceId], references: [id])
+  attackVector       String        // HTTP_L7_FLOOD, SYN_FLOOD, UDP_AMPLIFICATION, BYPASS_EVASION
+  peakRps            Int           @default(0)
+  currentRps         Int           @default(0)
+  detectedAt         DateTime      @default(now())
+  resolvedAt         DateTime?
+  description        String
+  affectedComponents String        // JSON or comma separated
+  alerts             ThreatAlert[]
+}
+
+model ThreatAlert {
+  id               String    @id @default(uuid())
+  incidentId       String?
+  incident         Incident? @relation(fields: [incidentId], references: [id])
+  title            String
+  message          String
+  severity         String    // CRITICAL, HIGH, MEDIUM, LOW
+  sourceIp         String
+  targetPath       String
+  anomalyScore     Float     @default(0.0)
+  signatureMatched String?
+  acknowledged     Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+}
+
+model LoadTestRun {
+  id               String    @id @default(uuid())
+  testName         String
+  targetUrl        String
+  vus              Int
+  durationSec      Int
+  targetRps        Int
+  protocol         String    @default("HTTP")
+  status           String    @default("PENDING") // PENDING, RUNNING, COMPLETED, STOPPED, ABORTED
+  peakRps          Int       @default(0)
+  avgLatencyMs     Float     @default(0.0)
+  p95LatencyMs     Float     @default(0.0)
+  errorRate        Float     @default(0.0)
+  emergencyStopped Boolean   @default(false)
+  logs             String    @default("")
+  configJson       String?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+}
+
+model DefensePolicy {
+  id             String   @id @default(uuid())
+  name           String
+  type           String   // RATE_LIMIT, WAF_RULE, IP_REPUTATION, GEO_BLOCK, KERNEL_TUNING
+  status         String   @default("ACTIVE") // ACTIVE, DISABLED
+  priority       Int      @default(1)
+  targetEndpoint String   @default("*")
+  configJson     String   // Structured rule parameters
+  appliedCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  userName   String
+  userRole   String
+  action     String   // POLICY_APPLIED, EMERGENCY_STOP, LOAD_TEST_TRIGGERED, WAF_RULE_TOGGLED, INCIDENT_RESOLVED
+  resource   String
+  detailsJson String?
+  ipAddress  String   @default("127.0.0.1")
+  status     String   @default("SUCCESS") // SUCCESS, DENIED, FAILED
+  timestamp  DateTime @default(now())
+}
+
+model TelemetryMetric {
+  id                String   @id @default(uuid())
+  timestamp         DateTime @default(now())
+  cpuUsage          Float    // Percentage
+  ramUsage          Float    // Percentage
+  networkInMbps     Float
+  networkOutMbps    Float
+  ingressRps        Int
+  droppedRps        Int
+  normalRps         Int
+  activeConnections Int
+  threatLevel       Int      @default(3) // DEFCON style: 1 (Emergency) to 5 (Normal)
+}

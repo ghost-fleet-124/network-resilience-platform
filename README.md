@@ -1,104 +1,176 @@
-# Antigravity Enterprise Network Load Testing Platform
+# BLACKSHIELD — Critical Infrastructure Cyber Defense Platform
+### National Emergency Response Security Operations Center (SOC) & Resilience Platform
 
-An enterprise-grade, distributed multi-protocol network traffic simulation and resilience verification platform engineered for high-concurrency multiplayer gaming infrastructure, real-time communication channels, and distributed services.
-
-Scalable across distributed load-generator worker clusters with explicit numerical Request-Per-Second (RPS) profiles up to **5,000,000 Target RPS**.
-
----
-
-## 1. Enterprise Numerical RPS Profiles
-
-Every intensity level corresponds to an explicit numerical workload target:
-
-| Intensity Tier | Target RPS | Max Socket Pool | Bandwidth Ceiling | Cluster Sizing Recommendation | Operational Role |
-| :--- | :---:| :---:| :---:| :---:| :--- |
-| **Low** | **80,000** | 500 conns | 100 Mbps | 1 Node | Enterprise baseline connectivity check |
-| **Medium** | **200,000** | 1,500 conns | 250 Mbps | 2 Nodes | Typical production player activity |
-| **High** | **500,000** | 3,000 conns | 600 Mbps | 5 Nodes | Evening peak concurrent usage |
-| **Large** | **750,000** | 5,000 conns | 1.0 Gbps | 8 Nodes | Major game launch ingress testing |
-| **Massive** | **1,000,000** | 10,000 conns | 1.5 Gbps | 10 Nodes | Mega-scale stress testing (Seven figures) |
-| **Ultra Massive** | **2,000,000** | 20,000 conns | 3.0 Gbps | 20 Nodes | Tournament championship concurrency |
-| **Super Massive** | **3,000,000** | 35,000 conns | 5.0 Gbps | 30 Nodes | Hyper-scale global failover validation |
-| **Super Ultra Massive** | **5,000,000** | **50,000 conns** | **8.0 Gbps** | **50 Nodes** | **Enterprise apex capacity benchmark** |
-
-> **Honest Capacity Guarantee**: Workload values represent requested target profiles. The system benchmarks each generator machine's actual hardware dispatch limit, measures true outbound generated traffic, and explicitly reports how many worker machines are needed if current cluster capacity is saturated.
+[![Next.js 15](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Prisma ORM](https://img.shields.io/badge/Prisma-6.4-16a34a?style=flat-square&logo=prisma)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![Grafana k6](https://img.shields.io/badge/Grafana_k6-Integrated-purple?style=flat-square&logo=k6)](https://k6.io/)
+[![Docker Ready](https://img.shields.io/badge/Docker-Compatible-2496ED?style=flat-square&logo=docker)](https://www.docker.com/)
 
 ---
 
-## 2. Four-Pillar RPS Measurement Model
+## 1. Mission & Operational Context
 
-The platform monitors and contrasts four distinct dimensions of traffic velocity in real time:
+**BLACKSHIELD** is an enterprise-grade, defensive Security Operations Center (SOC) platform engineered for national emergency management and critical infrastructure protection agencies (e.g. 911 emergency call intake, FEMA strategic coordination gateways, municipal power grid SCADA monitors, and emergency medical resource locators) facing sophisticated Distributed Denial of Service (DDoS) threats.
 
-1. **Requested Target RPS**: The mathematical workload configured by the operator.
-2. **Outbound Generated RPS**: Actual traffic emitted by the generator network sockets.
-3. **Server Received RPS**: Confirmed requests received and acknowledged by the target server.
-4. **Successfully Processed RPS**: Legitimate, non-error transactions (e.g. HTTP 2xx or valid UDP state ticks) vs failed/dropped transactions.
-
-For UDP, transport-level **Packets Per Second (PPS)** are distinguished from application-level **Requests Per Second (RPS)**.
-
----
-
-## 3. Distributed Generator Architecture
-
-* **Worker Sharding**: Workload targets are distributed across active cluster nodes according to their benchmarked throughput limits.
-* **Built-in Node Benchmarking**: Operators can click **"Test Local Limit"** in the Cluster Nodes panel to measure the host machine's actual socket throughput limit in real time.
-* **Capacity Sizing Calculator**: When tests exceed available generator hardware, the platform automatically reports the exact deficit and displays the number of worker nodes needed to reach 100% saturation.
+The platform provides end-to-end operational defense:
+1. **Real-Time SOC Observability**: Continuous telemetry tracking availability, compute load, network ingress/egress, and request-rate velocities.
+2. **Controlled Load Testing (k6)**: Safe, synthetic resilience benchmarks with hard guardrails and instant emergency kill switches.
+3. **Repository Intelligence**: Defensive static code analysis of weaponized stresser toolkits (such as `naimxbzbd/ZxCDDoS`) without ever executing attack functionality.
+4. **Threat Detection & Anomaly Engine**: Gaussian rolling baseline statistics and Z-score deviation detectors with MITRE ATT&CK mapping.
+5. **Perimeter Defense Center**: Dynamic Token Bucket rate limiters, Cloudflare/ModSecurity WAF rule generators, IP reputation feeds, and kernel-level SYN cookie hardening.
+6. **Forensics & Incident Post-Mortems**: Cryptographic operator audit trails, printable executive incident reports, and SIEM JSON export streams.
 
 ---
 
-## 4. HTTP Website Load Testing & Flood Mode
+## 2. Core Modules
 
-The platform features a dedicated **HTTP Website Load Testing** mode for benchmarking websites, eCommerce stores, and API gateways:
+```mermaid
+flowchart TD
+    subgraph ClientHUD["Enterprise Dark Navy SOC HUD"]
+        Nav["Tactical Header & DEFCON Threat Gauge"]
+        M1["1. SOC Dashboard & Availability Matrix"]
+        M2["2. Controlled Load Testing (Grafana k6)"]
+        M3["3. Repository Intelligence (ZxCDDoS Audit)"]
+        M4["4. Threat Detection & Anomaly Engine"]
+        M5["5. Defense Center & WAF Configurator"]
+        M6["6. Forensics & Audit Trail Exporter"]
+    end
 
-* **Full URL Input & Auto-Parsing**: Enter `https://example.com/api/v1` or `http://127.0.0.1:9003/search?q=test` with automatic scheme, host, port, and query parsing.
-* **HTTP & HTTPS with TLS Handshake Timing**: Evaluates SSL/TLS overhead under extreme concurrency.
-* **GET & POST Workloads**: Supports form submissions, checkout payloads (`{"items": [...]}`), and custom JSON bodies.
-* **Connection Reuse & Keep-Alive**: Toggle HTTP Keep-Alive (`force_close=False`) vs rapid TCP tear-downs simulating distinct visitor connections.
-* **Redirect Traversal**: Follows HTTP 301/302 redirects without dropping session context.
-* **Custom Headers**: Pass authorization bearer tokens, custom User-Agents, and cookies.
-* **Website SLA Scorecard**: Automatically measures:
-  - **Success Rate %** (2xx/3xx vs 4xx/5xx/Timeouts)
-  - **Maximum Sustainable Request Rate (RPS)**
-  - **Latency Degradation % under sustained load**
-  - **HTTP Status Code Breakdown** (2xx, 3xx, 4xx, 5xx, 504 Timeouts)
+    subgraph DefenseAPIs["Next.js Server Actions & Guardrail Engine"]
+        AuthMid["RBAC: Admin | SOC Lead | Analyst | Auditor"]
+        Guard["Strict Target Validator & Limit Clamper"]
+        KillSw["Emergency Stop Kill Switch (SIGTERM/SIGKILL)"]
+        IntelEngine["Static AST Decomposition & Countermeasure Compiler"]
+        ZScore["Gaussian Rolling Mean & Sigma Surge Detector"]
+    end
+
+    subgraph DataTier["Data & Storage Tier"]
+        DB[(PostgreSQL 16 / Prisma ORM)]
+        k6[Grafana k6 Load Generator Container]
+    end
+
+    Nav --> AuthMid
+    M1 --> DefenseAPIs
+    M2 --> Guard
+    Guard --> k6
+    KillSw -.-> k6
+    M3 --> IntelEngine
+    M4 --> ZScore
+    DefenseAPIs --> DB
+```
+
+### Module 1: SOC Dashboard
+- **National Emergency Target Availability**: Real-time heartbeat checks on 5 national emergency infrastructure targets (911 Dispatch, FEMA Hub, Power Grid Telemetry, Emergency SMS Relay, Hospital Bed Status).
+- **Resource HUD**: CPU, RAM, Network Ingress/Egress (Gbps/Mbps), Active Socket Descriptors, and Worker Threads.
+- **Traffic Telemetry**: Ingress vs Processed RPS, Malicious Drop Rate, Protocol Breakdown (HTTP/2, HTTPS, TCP, UDP).
+- **Threat Level HUD**: DEFCON / Threat Level gauge (DEFCON 1 to 5), active attack alerts, blocked malicious requests counter, and mitigation status badge.
+
+### Module 2: Controlled Load Testing
+- **Target Verification Policy**: Validates URL against strict regex (`^(https?:\/\/)?(localhost|127\.0\.0\.1|::1|.*\.internal\.local|.*\.defense\.test)(:\d+)?(\/.*)?$`). Disallows public/external domains with explicit safety rejection.
+- **Hard Limits**: Concurrency capped at 200 VUs, maximum duration 300s, request rate ceiling 5,000 RPS.
+- **Execution Controller**: Executes `k6 run` with dynamic script generation or node-based high-concurrency synthetic engine. Captures stdout/stderr, aggregates latency percentiles (p50, p90, p95, p99), throughput, and error rates.
+- **Emergency Stop**: Instant kill switch with process group termination and safety status broadcast.
+
+### Module 3: Repository Intelligence (Defensive Analysis of ZxCDDoS)
+- **Target Repository**: `https://github.com/naimxbzbd/ZxCDDoS/tree/main`.
+- **Zero-Execution Rule**: Never executes malicious routines. Analyzes source files statically via lexical pattern matching and AST scanning.
+- **Deconstructed Vectors**:
+  - `c2.py`: Telnet listener, plaintext authentication, thread dispatching, command protocol parsing (`!* <method> <ip> <port> <time>`).
+  - Layer 7: HTTP GET/POST flood, HTTP/2 multiplexing saturation, Cloudflare UAM bypass emulation via User-Agent and proxy pool rotation.
+  - Layer 4: Raw socket TCP SYN flood (`SOCK_RAW`, TCP backlog exhaustion), UDP flood, ACK floods.
+  - Amplification / Reflection: Exploits of NTP monlist, DNS ANY queries, SSDP reflection vectors.
+- **Automated Countermeasure Generation**:
+  - Suricata & Snort IDS rules.
+  - Cloudflare WAF expression rules (`http.request.uri.path contains ...`).
+  - Nginx rate-limiting & connection-limiting snippets (`limit_req_zone`, `limit_conn_zone`).
+  - Linux kernel sysctl hardening parameters (`net.ipv4.tcp_syncookies = 1`, `net.ipv4.tcp_max_syn_backlog = 65536`).
+
+### Module 4: Threat Detection & Anomaly Engine
+- **Telemetry Analysis**: Computes rolling Z-scores and Exponential Moving Averages (EMA) on request rates.
+- **Alert Generation**: Automatic classification into CRITICAL, HIGH, MEDIUM, and LOW severity.
+- **MITRE ATT&CK Mapping**: Links detected events to T1498 (Network Denial of Service) and T1499 (Endpoint DoS).
+- **Incident Timeline**: Interactive chronological visualization of an ongoing or past attack sequence.
+
+### Module 5: Defense Center
+- **Dynamic Mitigation Switch**: Global "Under Attack" emergency mitigation mode toggle.
+- **Rate Limiting Policies**: Token bucket configuration per endpoint (e.g. `/api/auth/login`, `/api/dispatch`).
+- **WAF Rule Engine**: Live rule enable/disable with rule syntax preview for Cloudflare, AWS WAF, and ModSecurity.
+- **IP Reputation & Geo-Filtering**: Malicious ASN blocking, known Tor exit nodes, and automated botnet quarantine.
+
+### Module 6: Forensics & Exportable Reports
+- **Incident Audit Trail**: Immutable cryptographic log records tracking operator actions and system mitigations.
+- **Executive PDF Report Generator**: Generates formatted, publication-ready Incident Response Post-Mortem reports.
+- **SIEM Export**: JSON and CSV export formats formatted for Splunk, Elastic SIEM, and Azure Sentinel.
 
 ---
 
-## 5. Intelligent Safety Architecture
+## 3. Technology Stack
 
-* **High-Intensity Confirmation Gate**: Any test targeting $\ge 500,000\text{ RPS}$ against external infrastructure requires an explicit operator confirmation affirming ownership or written testing authorization.
-* **Target Scope Verification**: Distinguishes local sandbox targets (`127.0.0.1`, `localhost`), private RFC 1918 networks, and approved organization scopes (`*.staging.example.com`, subnets, or domain patterns) with zero challenge files required.
-* **Acceptable Use Policy & Compliance**: Enforces explicit legal boundaries, terms of service, and privacy retention schedules. Accepting terms alone does not authorize external targets without a registered scope.
-* **Emergency Circuit Breaker**: Auto-aborts tests if error rates exceed 50% or latency exceeds 5,000ms.
-* **Instant Kill Switch**: Immediate termination of all worker sockets in $< 50\text{ ms}$.
+- **Framework**: Next.js 15 (App Router, Server Actions, React 19)
+- **Language**: TypeScript 5.7 (Strict Mode)
+- **Styling**: Tailwind CSS 3.4 (Custom Dark Navy SOC Cyber Theme)
+- **Data Visualization**: Recharts (Responsive Area, Line, Bar, and Gauge Telemetry)
+- **Database & ORM**: PostgreSQL 16 & Prisma ORM 6.4 (with instant local SQLite dev mode)
+- **Load Testing**: Grafana k6 & Synthetic High-Concurrency Harness
+- **Containerization**: Multi-stage production `Dockerfile` and `docker-compose.yml`
 
 ---
 
-## 5. Quick Start & Execution
+## 4. Quickstart Guide
+
+### Option A: Local Development (Instant Zero-Dependency Setup)
 
 ```bash
-# 1. Install dependencies
-python -m pip install -r backend/requirements.txt
+# 1. Clone & Enter Project Directory
+cd "c:\Users\ASUS\OneDrive\Desktop\server Test"
 
-# 2. Build the frontend dashboard
-cd frontend
+# 2. Install Dependencies
 npm install
-npm run build
-cd ..
 
-# 3. Launch the platform (runs API, WebSockets, and local mock targets)
-python run_backend.py
+# 3. Initialize & Seed Database (Runs SQLite locally without needing external Postgres)
+npx prisma db push
+node prisma/seed.js
+
+# 4. Start Next.js Development Server
+npm run dev
 ```
-Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
+
+Visit **`http://localhost:3000`** in your browser to access the live BLACKSHIELD platform.
+
+### Option B: Docker Production Deployment
+
+```bash
+# Spin up Next.js Web App, PostgreSQL 16, and Grafana k6 runner
+docker compose up --build -d
+```
+
+Check health and logs:
+```bash
+docker compose logs -f blackshield-web
+```
 
 ---
 
-## 6. Automated Verification Suites
+## 5. Automated Verification Test Suite
+
+BLACKSHIELD includes a standalone autonomous verification test suite that verifies database persistence, all 9 API endpoints, the controlled testing guardrail enforcer, the ZxCDDoS static AST analyzer, and the anomaly detector:
 
 ```bash
-# Run the complete test suite (11 unit + integration tests)
-pytest backend/tests/ -v
-
-# Run the live end-to-end verification script
-python verify_system.py
+npm run test:system
+# or
+node scripts/verify-blackshield.js
 ```
+
+---
+
+## 6. Security & Ethical Policy
+
+1. **Defensive Posture Only**: BLACKSHIELD is strictly built for cyber defense, resilience testing, and availability monitoring.
+2. **Zero Attack Execution**: The repository intelligence module analyzes code statically. Under no circumstances does it compile or invoke attack scripts from analyzed repositories.
+3. **Hard Guardrails on Load Testing**:
+   - Any external target not in the loopback or internal authorized sandbox is rejected with a 403 Forbidden security error.
+   - Resource ceilings are enforced in code: Max 200 VUs, max 300 seconds, max 5,000 RPS.
+   - An immediate Emergency Stop kill switch terminates all synthetic load generators in milliseconds.

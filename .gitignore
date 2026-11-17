@@ -57,3 +57,11 @@ Thumbs.db
 
 # Audit logs and generated runtime reports
 backend/app/data/*.jsonl
+
+# Next.js & Local SQLite
+.next/
+dev.db
+dev.db-journal
+dev.db-shm
+dev.db-wal
+_legacy_v1/
