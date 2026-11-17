@@ -25,6 +25,17 @@ export interface NetworkValidationResult {
 // Approved Ports for Controlled Laboratory Testing
 export const APPROVED_PORTS = new Set([80, 443, 3000, 8000, 8080, 8888]);
 
+export function getApprovedPorts(): Set<number> {
+  const ports = new Set(APPROVED_PORTS);
+  if (process.env.PORT) {
+    const envPort = parseInt(process.env.PORT, 10);
+    if (!isNaN(envPort) && envPort > 0 && envPort <= 65535) {
+      ports.add(envPort);
+    }
+  }
+  return ports;
+}
+
 // Authorized Laboratory Target Domains
 export const AUTHORIZED_LAB_DOMAINS = [
   "localhost",
@@ -33,6 +44,8 @@ export const AUTHORIZED_LAB_DOMAINS = [
   "blackshield-web",
   "*.internal.local",
   "*.defense.test",
+  "*.up.railway.app",
+  "*.railway.app",
 ];
 
 /**
@@ -83,13 +96,20 @@ export function normalizeIP(rawIp: string): { ip: string; isIPv6: boolean } {
  */
 export async function validateTargetSecurity(urlStr: string): Promise<NetworkValidationResult> {
   let parsed: URL;
+  let normalizedUrlStr = urlStr.trim();
+
+  // 0. Support relative laboratory endpoints (e.g. /api/mock/emergency-dispatch)
+  if (normalizedUrlStr.startsWith("/")) {
+    const localPort = process.env.PORT || "3000";
+    normalizedUrlStr = `http://127.0.0.1:${localPort}${normalizedUrlStr}`;
+  }
 
   // 1. Syntactic URL validation
   try {
-    if (!urlStr.startsWith("http://") && !urlStr.startsWith("https://")) {
-      parsed = new URL(`http://${urlStr}`);
+    if (!normalizedUrlStr.startsWith("http://") && !normalizedUrlStr.startsWith("https://")) {
+      parsed = new URL(`http://${normalizedUrlStr}`);
     } else {
-      parsed = new URL(urlStr);
+      parsed = new URL(normalizedUrlStr);
     }
   } catch (err: any) {
     return {
@@ -114,12 +134,13 @@ export async function validateTargetSecurity(urlStr: string): Promise<NetworkVal
 
   // 3. Port validation (Default 80 for http, 443 for https)
   const port = parsed.port ? parseInt(parsed.port, 10) : parsed.protocol === "https:" ? 443 : 80;
-  if (!APPROVED_PORTS.has(port)) {
+  const approvedPorts = getApprovedPorts();
+  if (!approvedPorts.has(port)) {
     return {
       allowed: false,
       resolvedIps: [],
       canonicalUrl: parsed.href,
-      rejectionReason: `Port ${port} is not in the approved laboratory testing port list (Approved: ${Array.from(APPROVED_PORTS).join(", ")}).`,
+      rejectionReason: `Port ${port} is not in the approved laboratory testing port list (Approved: ${Array.from(approvedPorts).join(", ")}).`,
       violationCode: "UNAPPROVED_PORT",
     };
   }
@@ -137,14 +158,18 @@ export async function validateTargetSecurity(urlStr: string): Promise<NetworkVal
     };
   }
 
-  // 5. Server-side DNS resolution
+  // 5. Server-side DNS resolution with strict 3000ms timeout
   let resolvedIps: string[] = [];
   try {
     if (net.isIP(hostname)) {
       resolvedIps = [hostname];
     } else {
-      const records = await dns.promises.lookup(hostname, { all: true });
-      resolvedIps = records.map((r) => r.address);
+      const dnsPromise = dns.promises.lookup(hostname, { all: true });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DNS resolution timed out after 3000ms")), 3000)
+      );
+      const records = await Promise.race([dnsPromise, timeoutPromise]);
+      resolvedIps = (records as dns.LookupAddress[]).map((r) => r.address);
     }
   } catch (err: any) {
     return {
@@ -205,9 +230,16 @@ export async function validateTargetSecurity(urlStr: string): Promise<NetworkVal
     const isLoopback = (!isIPv6 && isLoopbackIPv4(ip)) || (isIPv6 && ip === "::1");
     const isMockLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "blackshield-web";
     const isInternalDomain = hostname.endsWith(".internal.local") || hostname.endsWith(".defense.test");
+    const isSelfDeployment =
+      hostname.endsWith(".up.railway.app") ||
+      hostname.endsWith(".railway.app") ||
+      hostname.endsWith(".vercel.app") ||
+      (process.env.RAILWAY_PUBLIC_DOMAIN && hostname === process.env.RAILWAY_PUBLIC_DOMAIN) ||
+      (process.env.RAILWAY_STATIC_URL && hostname === process.env.RAILWAY_STATIC_URL) ||
+      (process.env.VERCEL_URL && hostname === process.env.VERCEL_URL);
 
-    if (isLoopback || isMockLocalHost || isInternalDomain) {
-      // Loopback/Mock/Internal is allowed for controlled testing
+    if (isLoopback || isMockLocalHost || isInternalDomain || isSelfDeployment) {
+      // Loopback/Mock/Internal/Self-Deployment is allowed for controlled testing
       continue;
     }
 

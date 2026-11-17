@@ -62,6 +62,15 @@ export default function ControlledLoadTesting() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setConfig((prev) => ({
+        ...prev,
+        targetUrl: `${window.location.origin}/api/mock/emergency-dispatch`,
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
     fetchTestStatus();
     const interval = setInterval(fetchTestStatus, 1500);
     return () => clearInterval(interval);

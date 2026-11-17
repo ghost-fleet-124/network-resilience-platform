@@ -5,8 +5,8 @@
   "description": "BLACKSHIELD - Critical Infrastructure Cyber Defense Platform for National Emergency Response",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "node .next/standalone/server.js",
+    "build": "node scripts/prepare-database.js && next build && node scripts/copy-standalone.js",
+    "start": "node scripts/entrypoint.js",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
