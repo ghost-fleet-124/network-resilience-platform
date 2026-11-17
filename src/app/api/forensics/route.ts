@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { inMemoryStore, logAuditEvent } from "@/lib/db";
+import { inMemoryStore } from "@/lib/db";
 import { getIncidentTimeline } from "@/lib/anomaly-detector";
-import { ZXCDDOS_FINDINGS } from "@/data/zxCDDoS-intelligence";
+import { VERIFIED_FINDINGS, VERIFIED_REPO_METADATA } from "@/data/zxCDDoS-verified";
+import { getAuditChain, verifyChainIntegrity } from "@/lib/audit-chain";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -9,23 +10,36 @@ export async function GET(req: Request) {
 
   const timeline = getIncidentTimeline();
   const incidents = inMemoryStore.incidents;
-  const auditLogs = inMemoryStore.auditLogs;
+  const auditLogs = getAuditChain();
+  const chainIntegrity = verifyChainIntegrity();
+
+  const reportId = `REP-2026-${Math.floor(10000 + Math.random() * 90000)}`;
 
   const executiveReport = {
+    reportId,
     organization: "National Emergency Management & Critical Infrastructure Protection Agency (NEMCIPA)",
-    platform: "BLACKSHIELD Cyber Defense & SOC Platform",
+    platform: "BLACKSHIELD Cyber Defense & SOC Platform V2",
     classification: "CONFIDENTIAL // INCIDENT RESPONSE POST-MORTEM",
     generatedAt: new Date().toISOString(),
+    tamperEvidentLedger: {
+      integrityStatus: chainIntegrity.isValid ? "CRYPTOGRAPHICALLY_VERIFIED" : "COMPROMISED",
+      totalChainedEvents: chainIntegrity.totalEvents,
+      ledgerStandard: "SHA-256 Chained Hash Sequence",
+    },
     primaryIncident: incidents[0],
     incidentSummary: {
       threatTitle: "Multi-Vector Distributed Denial of Service (DDoS) on National 911 Dispatch Infrastructure",
       threatActorVector: "Coordinated Layer 7 HTTP/2 cache-busting flood combined with Layer 4 raw socket SYN backlog exhaustion",
-      correlatedToolkit: "ZxCDDoS framework (naimxbzbd/ZxCDDoS)",
+      correlatedToolkit: {
+        repoUrl: VERIFIED_REPO_METADATA.repoUrl,
+        commitSha: VERIFIED_REPO_METADATA.commitSha,
+        provenance: "VERIFIED_SOURCE_FILE_INSPECTION",
+      },
       peakVolumetricRps: 184500,
       activeMitigationDurationMinutes: 120,
       availabilityImpact: "911 Dispatch Intake maintained 99.41% uptime; emergency failover token bucket preserved high-priority dispatch calls.",
       defensiveActionsExecuted: [
-        "Enabled WAF Regex inspection dropping spoofed User-Agents matching ZxCDDoS heuristics",
+        "Enabled WAF Regex inspection dropping spoofed User-Agents and 8-character random Origins matching cf.js heuristics",
         "Enforced dynamic Token Bucket rate limiter (1,000 capacity / 250 refill/sec) on /api/mock/emergency-dispatch",
         "Tuned Linux kernel net.ipv4.tcp_syncookies=1 to neutralize SYN backlog exhaustion",
         "Blackholed high-risk botnet ranges originating from AS49505 and AS200019",
@@ -33,20 +47,24 @@ export async function GET(req: Request) {
     },
     timeline,
     auditTrailCount: auditLogs.length,
-    recentAudits: auditLogs.slice(0, 15),
-    repositoryIntelligenceFindings: ZXCDDOS_FINDINGS.map((f) => ({
+    recentAudits: auditLogs.slice(0, 20),
+    repositoryIntelligenceFindings: VERIFIED_FINDINGS.map((f) => ({
       id: f.id,
-      component: f.component,
+      file: f.file,
+      provenance: f.provenance,
       severity: f.severity,
       technique: f.mitreMapping.techniqueName,
-      mitigation: Object.keys(f.defensiveSignatures).join(", "),
+      mitigationRules: Object.keys(f.defensiveSignatures).join(", "),
     })),
   };
 
   if (format === "siem-json") {
-    // Export formatted for SIEM ingestion (Elastic/Splunk/Sentinel)
+    // Export formatted for SIEM ingestion (Elastic/Splunk/Sentinel) with cryptographic event hashes
     const siemEvents = auditLogs.map((log) => ({
       "@timestamp": log.timestamp,
+      "event.id": log.id,
+      "event.hash": log.eventHash,
+      "event.previous_hash": log.previousHash,
       "event.action": log.action,
       "event.category": "security_operations",
       "user.name": log.userName,
@@ -60,7 +78,7 @@ export async function GET(req: Request) {
     return new NextResponse(JSON.stringify(siemEvents, null, 2), {
       headers: {
         "Content-Type": "application/json",
-        "Content-Disposition": 'attachment; filename="blackshield-siem-audit-stream.json"',
+        "Content-Disposition": `attachment; filename="blackshield-siem-ledger-${Date.now()}.json"`,
       },
     });
   }
@@ -68,6 +86,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     report: executiveReport,
     auditLogs,
+    chainIntegrity,
     incidents,
   });
 }

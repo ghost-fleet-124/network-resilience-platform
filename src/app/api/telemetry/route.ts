@@ -31,8 +31,8 @@ export async function GET(req: Request) {
   // Threat level (DEFCON): 1 (Critical Emergency) to 5 (Normal)
   const threatLevel = isMitigating ? 2 : 1;
 
-  // Run anomaly detector check
-  const anomalyReport = evaluateTrafficAnomaly(ingressRps);
+  // Run anomaly detector check with explicit provenance
+  const anomalyReport = evaluateTrafficAnomaly(ingressRps, "/api/mock/emergency-dispatch", "SIMULATED_BENCHMARK");
 
   // Generate historical timeline data for Recharts
   const now = Date.now();
@@ -54,6 +54,7 @@ export async function GET(req: Request) {
       ram: Math.min(100, Math.round(ramUsage + (Math.random() - 0.5) * 2)),
       networkInMbps: parseFloat(((histIngress * 1.8) / 100).toFixed(1)),
       networkOutMbps: parseFloat(((histNormal * 2.2) / 100).toFixed(1)),
+      provenance: "SIMULATED_INGRESS_WAVE",
     });
   }
 
@@ -70,7 +71,10 @@ export async function GET(req: Request) {
       activeConnections,
       threatLevel,
       mitigationActive: isMitigating,
+      provenance: "SIMULATED_BENCHMARK_FLOW",
+      dataClassification: "DEMO_INCIDENT_STREAM",
     },
+    provenanceNotice: "BLACKSHIELD SOC HUD explicitly tags ingress and hardware telemetry. Ingress traffic reflects active incident INC-2026-0881 resilience simulation.",
     anomaly: anomalyReport,
     timeSeries,
   });

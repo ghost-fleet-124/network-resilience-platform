@@ -18,17 +18,19 @@ import {
   RefreshCw,
   Copy,
   Lock,
+  GitBranch,
+  FileCode,
+  Download,
 } from "lucide-react";
-import { DefensePolicyItem } from "@/lib/types";
-import { IPReputationRecord, TrafficRecommendation } from "@/lib/defense-engine";
+import { IPReputationRecord, TrafficRecommendation, VersionedDefensePolicy, PolicyLifecycleState } from "@/lib/defense-engine";
 
 export default function DefenseCenter() {
   const [mitigationActive, setMitigationActive] = useState<boolean>(true);
-  const [policies, setPolicies] = useState<DefensePolicyItem[]>([]);
+  const [policies, setPolicies] = useState<VersionedDefensePolicy[]>([]);
   const [ipReputation, setIpReputation] = useState<IPReputationRecord[]>([]);
   const [recommendations, setRecommendations] = useState<TrafficRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [togglingPolicyId, setTogglingPolicyId] = useState<string | null>(null);
+  const [transitioningId, setTransitioningId] = useState<string | null>(null);
   const [copiedRuleId, setCopiedRuleId] = useState<string | null>(null);
 
   const fetchDefenseData = async () => {
@@ -37,9 +39,9 @@ export default function DefenseCenter() {
       if (res.ok) {
         const data = await res.json();
         setMitigationActive(data.activeMitigationMode);
-        setPolicies(data.policies);
-        setIpReputation(data.ipReputation);
-        setRecommendations(data.recommendations);
+        setPolicies(data.policies || []);
+        setIpReputation(data.ipReputation || []);
+        setRecommendations(data.recommendations || []);
       }
     } catch (err) {
       console.error("Error fetching defense center data:", err);
@@ -58,7 +60,10 @@ export default function DefenseCenter() {
     try {
       const res = await fetch("/api/defense/policies", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-soc-role": "SOC_LEAD",
+        },
         body: JSON.stringify({
           action: "TOGGLE_MITIGATION_MODE",
           enabled: !mitigationActive,
@@ -73,29 +78,31 @@ export default function DefenseCenter() {
     }
   };
 
-  const handleTogglePolicy = async (policyId: string, currentStatus: string) => {
-    setTogglingPolicyId(policyId);
+  const handleTransitionPolicy = async (policyId: string, newState: PolicyLifecycleState) => {
+    setTransitioningId(policyId);
     try {
       const res = await fetch("/api/defense/policies", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-soc-role": "ADMIN",
+        },
         body: JSON.stringify({
-          action: "TOGGLE_POLICY",
+          action: "TRANSITION_POLICY_STATE",
           policyId,
-          active: currentStatus !== "ACTIVE",
+          newState,
         }),
       });
       if (res.ok) {
+        const data = await res.json();
         setPolicies((prev) =>
-          prev.map((p) =>
-            p.id === policyId ? { ...p, status: p.status === "ACTIVE" ? "DISABLED" : "ACTIVE" } : p
-          )
+          prev.map((p) => (p.id === policyId ? data.policy : p))
         );
       }
     } catch (err) {
-      console.error("Error toggling policy:", err);
+      console.error("Error updating policy lifecycle:", err);
     } finally {
-      setTogglingPolicyId(null);
+      setTransitioningId(null);
     }
   };
 
@@ -103,6 +110,19 @@ export default function DefenseCenter() {
     navigator.clipboard.writeText(syntax);
     setCopiedRuleId(id);
     setTimeout(() => setCopiedRuleId(null), 2000);
+  };
+
+  const getLifecycleBadge = (state: PolicyLifecycleState) => {
+    switch (state) {
+      case "VERIFIED_ACTIVE":
+        return "bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+      case "OPERATOR_APPROVED":
+        return "bg-cyan-500/10 text-cyan-400 border-cyan-500/30";
+      case "CONFIG_DRAFT":
+        return "bg-amber-500/10 text-amber-400 border-amber-500/30";
+      default:
+        return "bg-slate-500/10 text-slate-400 border-slate-500/30";
+    }
   };
 
   return (
@@ -152,7 +172,7 @@ export default function DefenseCenter() {
             {mitigationActive ? (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>SHIELD ACTIVE (CLICK TO DISARM)</span>
+                <span>SHIELD ACTIVE (DISARM)</span>
               </>
             ) : (
               <>
@@ -164,20 +184,20 @@ export default function DefenseCenter() {
         </div>
       </div>
 
-      {/* Defense Policies Table & Controls */}
+      {/* Defense Policies Table & Lifecycle Controls */}
       <div className="cyber-panel p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-soc-border pb-3">
           <div>
             <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">
               <Sliders className="w-4 h-4 text-soc-cyan" />
-              <span>ACTIVE PERIMETER DEFENSE POLICIES & RATE LIMITERS</span>
+              <span>PERIMETER DEFENSE POLICIES & VERSION LIFECYCLE</span>
             </h3>
             <p className="text-xs text-soc-muted font-mono mt-0.5">
-              Configured rate limits, WAF rule expressions, and kernel tuning parameters
+              Strict operator approval workflow with version incrementing and exportable snippets
             </p>
           </div>
           <span className="text-xs font-mono text-soc-cyan">
-            {policies.filter((p) => p.status === "ACTIVE").length} of {policies.length} Active
+            {policies.filter((p) => p.lifecycleState === "VERIFIED_ACTIVE").length} of {policies.length} Verified Active
           </span>
         </div>
 
@@ -185,60 +205,57 @@ export default function DefenseCenter() {
           <table className="w-full text-left font-mono text-xs">
             <thead className="bg-soc-bg text-soc-muted uppercase text-[10px] border-b border-soc-border">
               <tr>
-                <th className="py-2.5 px-3">Policy Name</th>
+                <th className="py-2.5 px-3">Policy / Version</th>
                 <th className="py-2.5 px-3">Type</th>
                 <th className="py-2.5 px-3">Target Scope</th>
-                <th className="py-2.5 px-3">Enforcement Parameters</th>
-                <th className="py-2.5 px-3">Hits Blocked</th>
-                <th className="py-2.5 px-3">State</th>
-                <th className="py-2.5 px-3 text-right">Action</th>
+                <th className="py-2.5 px-3">Deployment Target</th>
+                <th className="py-2.5 px-3">Approved By</th>
+                <th className="py-2.5 px-3">Lifecycle State</th>
+                <th className="py-2.5 px-3 text-right">Approval Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-soc-border/40">
               {policies.map((pol) => {
-                const isActive = pol.status === "ACTIVE";
+                const isActive = pol.lifecycleState === "VERIFIED_ACTIVE";
                 return (
                   <tr key={pol.id} className="hover:bg-soc-cardHover">
-                    <td className="py-3 px-3 text-soc-text font-bold">{pol.name}</td>
+                    <td className="py-3 px-3 text-soc-text font-bold">
+                      <div>{pol.name}</div>
+                      <span className="text-[10px] text-soc-muted font-mono font-normal">
+                        v{pol.version} • {new Date(pol.updatedAt).toLocaleTimeString()}
+                      </span>
+                    </td>
                     <td className="py-3 px-3">
                       <span className="px-1.5 py-0.5 rounded text-[10px] bg-soc-void border border-soc-border text-soc-cyan">
                         {pol.type}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-soc-muted truncate max-w-xs">{pol.targetEndpoint}</td>
-                    <td className="py-3 px-3 text-soc-text max-w-sm truncate">
-                      {pol.config ? JSON.stringify(pol.config) : "Configured"}
-                    </td>
-                    <td className="py-3 px-3 text-soc-emerald font-bold">
-                      {pol.appliedCount.toLocaleString()}
-                    </td>
+                    <td className="py-3 px-3 text-soc-amber">{pol.deploymentTarget}</td>
+                    <td className="py-3 px-3 text-soc-muted">{pol.approvedBy || "System Seed"}</td>
                     <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isActive
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                            : "bg-slate-500/10 text-slate-400 border border-slate-500/30"
-                        }`}
-                      >
-                        {pol.status}
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getLifecycleBadge(pol.lifecycleState)}`}>
+                        {pol.lifecycleState}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => handleTogglePolicy(pol.id, pol.status)}
-                        disabled={togglingPolicyId === pol.id}
-                        className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors border ${
-                          isActive
-                            ? "bg-soc-bg border-soc-border hover:border-soc-crimson text-soc-crimson"
-                            : "bg-soc-cyan/20 border-soc-cyan text-soc-cyan hover:bg-soc-cyan/30"
-                        }`}
-                      >
-                        {togglingPolicyId === pol.id
-                          ? "..."
-                          : isActive
-                          ? "Deactivate"
-                          : "Activate"}
-                      </button>
+                      {isActive ? (
+                        <button
+                          onClick={() => handleTransitionPolicy(pol.id, "DISABLED")}
+                          disabled={transitioningId === pol.id}
+                          className="px-2.5 py-1 rounded text-[10px] font-bold bg-soc-bg border border-soc-border hover:border-soc-crimson text-soc-crimson"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTransitionPolicy(pol.id, "VERIFIED_ACTIVE")}
+                          disabled={transitioningId === pol.id}
+                          className="px-2.5 py-1 rounded text-[10px] font-bold bg-soc-cyan/20 border border-soc-cyan text-soc-cyan hover:bg-soc-cyan/30"
+                        >
+                          Approve & Deploy
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -256,14 +273,14 @@ export default function DefenseCenter() {
             <div>
               <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">
                 <Globe className="w-4 h-4 text-soc-cyan" />
-                <span>IP REPUTATION & QUARANTINE FEED</span>
+                <span>IP REPUTATION & NULL-ROUTE QUARANTINE</span>
               </h3>
               <p className="text-xs text-soc-muted font-mono mt-0.5">
-                Automated threat intelligence feed identifying hostile botnets and scanners
+                Hostile botnet IPs and Tor exit nodes with verified null-route status
               </p>
             </div>
             <span className="text-xs font-mono text-soc-crimson font-bold">
-              {ipReputation.filter((i) => i.status === "BLOCKED").length} Null-Routed
+              {ipReputation.filter((i) => i.status === "BLOCKED").length} BGP Null-Routed
             </span>
           </div>
 
@@ -304,8 +321,8 @@ export default function DefenseCenter() {
                   >
                     {item.status}
                   </span>
-                  <span className="text-[10px] text-soc-muted">
-                    {item.totalAttacksObserved.toLocaleString()} hits
+                  <span className="text-[9px] text-soc-muted block">
+                    {item.deploymentStatus}
                   </span>
                 </div>
               </div>
@@ -313,7 +330,7 @@ export default function DefenseCenter() {
           </div>
         </div>
 
-        {/* Right Column: Traffic Filtering Recommendations (6 cols) */}
+        {/* Right Column: Traffic Recommendations (6 cols) */}
         <div className="lg:col-span-6 cyber-panel p-5 space-y-4">
           <div className="border-b border-soc-border pb-3">
             <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">

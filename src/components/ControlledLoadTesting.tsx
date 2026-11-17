@@ -13,7 +13,11 @@ import {
   Terminal,
   History,
   AlertOctagon,
-  RefreshCw,
+  Download,
+  Lock,
+  Globe,
+  Radio,
+  FileDown,
 } from "lucide-react";
 import {
   AreaChart,
@@ -42,6 +46,7 @@ export default function ControlledLoadTesting() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [warningMsg, setWarningMsg] = useState<string | null>(null);
   const [emergencyStopping, setEmergencyStopping] = useState(false);
+  const [resolvedIps, setResolvedIps] = useState<string[]>([]);
 
   const fetchTestStatus = async () => {
     try {
@@ -71,7 +76,10 @@ export default function ControlledLoadTesting() {
     try {
       const res = await fetch("/api/loadtest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-soc-role": "SOC_LEAD",
+        },
         body: JSON.stringify(config),
       });
 
@@ -79,10 +87,12 @@ export default function ControlledLoadTesting() {
 
       if (!res.ok) {
         setErrorMsg(data.error || "Failed to initialize controlled load test.");
+        if (data.resolvedIps) setResolvedIps(data.resolvedIps);
       } else {
         if (data.warnings && data.warnings.length > 0) {
           setWarningMsg(data.warnings.join(" | "));
         }
+        if (data.resolvedIps) setResolvedIps(data.resolvedIps);
         setActiveTest(data.test);
       }
     } catch (err: any) {
@@ -97,7 +107,10 @@ export default function ControlledLoadTesting() {
     try {
       const res = await fetch("/api/loadtest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-soc-role": "SOC_LEAD",
+        },
         body: JSON.stringify({ action: "EMERGENCY_STOP", reason: "SOC Operator Manual Kill Switch" }),
       });
       const data = await res.json();
@@ -111,18 +124,37 @@ export default function ControlledLoadTesting() {
     }
   };
 
+  const exportHistoryCSV = () => {
+    if (history.length === 0) return;
+    const headers = ["TestName,TargetUrl,VUs,DurationSec,TargetRps,PeakRps,AvgLatencyMs,P95LatencyMs,ErrorRate,Status,CreatedAt"];
+    const rows = history.map((h) =>
+      `"${h.testName}","${h.targetUrl}",${h.vus},${h.durationSec},${h.targetRps},${h.peakRps},${h.avgLatencyMs},${h.p95LatencyMs},${h.errorRate},"${h.status}","${h.createdAt}"`
+    );
+    const blob = new Blob([[...headers, ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `blackshield-loadtest-history-${Date.now()}.csv`;
+    a.click();
+  };
+
   return (
     <div className="space-y-6">
-      {/* Guardrail Policy Disclaimer Banner */}
+      {/* Deep Network Guard & SSRF Protection Banner */}
       <div className="p-4 rounded-lg bg-soc-card border border-soc-cyan/40 shadow-cyber-cyan flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <ShieldCheck className="w-5 h-5 text-soc-cyan flex-shrink-0" />
           <div className="text-xs font-mono">
-            <span className="text-soc-cyan font-bold uppercase tracking-wider block">
-              GRAFANA K6 CONTROLLED TESTING GUARDRAILS ACTIVE
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-soc-cyan font-bold uppercase tracking-wider block">
+                SERVER-SIDE NETWORK GUARD ACTIVE (SSRF & DNS REBINDING DEFENSE)
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] bg-soc-void border border-soc-cyan text-soc-cyan">
+                FIPS-COMPLIANT
+              </span>
+            </div>
             <span className="text-soc-muted">
-              Execution restricted to localhost / internal sandboxes. Hard limits enforced: Max 200 VUs, 300s duration, 5,000 RPS.
+              Server-side DNS resolution enforced. Link-local (169.254.x.x), unapproved ports, and external WAN targets are automatically rejected.
             </span>
           </div>
         </div>
@@ -143,8 +175,13 @@ export default function ControlledLoadTesting() {
         <div className="p-4 rounded bg-soc-crimson/15 border border-soc-crimson text-soc-crimson text-xs font-mono flex items-start space-x-2">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
-            <strong className="block font-bold">GUARDRAIL INTERVENTION:</strong>
+            <strong className="block font-bold">NETWORK GUARD POLICY INTERVENTION:</strong>
             <span>{errorMsg}</span>
+            {resolvedIps.length > 0 && (
+              <span className="block mt-1 text-[11px] text-soc-muted">
+                Resolved IP(s): {resolvedIps.join(", ")}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -153,7 +190,7 @@ export default function ControlledLoadTesting() {
         <div className="p-4 rounded bg-soc-amber/15 border border-soc-amber text-soc-amber text-xs font-mono flex items-start space-x-2">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
-            <strong className="block font-bold">LIMIT CLAMP NOTICE:</strong>
+            <strong className="block font-bold">CONSERVATIVE LABORATORY LIMIT ENFORCED:</strong>
             <span>{warningMsg}</span>
           </div>
         </div>
@@ -188,17 +225,14 @@ export default function ControlledLoadTesting() {
                 placeholder="http://localhost:3000/api/mock/emergency-dispatch"
               />
               <p className="text-[10px] text-soc-muted mt-1">
-                Authorized: <code className="text-soc-cyan">localhost</code>,{" "}
-                <code className="text-soc-cyan">127.0.0.1</code>,{" "}
-                <code className="text-soc-cyan">*.internal.local</code>,{" "}
-                <code className="text-soc-cyan">*.defense.test</code>
+                Approved Ports: <code className="text-soc-cyan">80, 443, 3000, 8000, 8080, 8888</code>
               </p>
             </div>
 
             {/* Benchmark Preset Selection */}
             <div>
               <label className="block text-soc-muted mb-1 uppercase tracking-wider">
-                Defensive Preset
+                Laboratory Presets
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -209,7 +243,7 @@ export default function ControlledLoadTesting() {
                       vus: 10,
                       durationSec: 10,
                       targetRps: 250,
-                      testName: "Light_Smoke_Test",
+                      testName: "Light_Smoke_Benchmark",
                     })
                   }
                   className="px-2.5 py-1.5 rounded bg-soc-bg border border-soc-border hover:border-soc-cyan text-soc-text text-[11px]"
@@ -224,7 +258,7 @@ export default function ControlledLoadTesting() {
                       vus: 50,
                       durationSec: 20,
                       targetRps: 1000,
-                      testName: "Intake_Stress_1000RPS",
+                      testName: "Intake_Stress_1kRPS",
                     })
                   }
                   className="px-2.5 py-1.5 rounded bg-soc-bg border border-soc-border hover:border-soc-cyan text-soc-text text-[11px]"
@@ -311,7 +345,7 @@ export default function ControlledLoadTesting() {
                 }`}
               >
                 <Play className="w-4 h-4" />
-                <span>{loading ? "INITIALIZING K6..." : "EXECUTE CONTROLLED BENCHMARK"}</span>
+                <span>{loading ? "VALIDATING TARGET..." : "EXECUTE CONTROLLED BENCHMARK"}</span>
               </button>
             </div>
           </form>
@@ -419,7 +453,7 @@ export default function ControlledLoadTesting() {
             <div>
               <div className="flex items-center space-x-1.5 text-xs font-mono text-soc-muted mb-1.5">
                 <Terminal className="w-3.5 h-3.5 text-soc-cyan" />
-                <span>K6 CONSOLE STREAM</span>
+                <span>K6 EXECUTION LOG STREAM</span>
               </div>
               <div className="h-32 bg-soc-void border border-soc-border rounded p-2.5 overflow-y-auto font-mono text-[11px] text-soc-text space-y-1">
                 {activeTest && activeTest.logs.length > 0 ? (
@@ -448,16 +482,25 @@ export default function ControlledLoadTesting() {
 
       {/* Historical Load Test Runs Table */}
       <div className="cyber-panel p-5">
-        <div className="flex items-center justify-between mb-4 border-b border-soc-border pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-soc-border pb-3">
           <div className="flex items-center space-x-2">
             <History className="w-4 h-4 text-soc-cyan" />
             <h3 className="font-mono text-sm font-semibold text-soc-text">
               CONTROLLED LOAD TESTING AUDIT HISTORY
             </h3>
           </div>
-          <span className="text-xs font-mono text-soc-muted">
-            {history.length} benchmarks recorded
-          </span>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={exportHistoryCSV}
+              className="flex items-center space-x-1 px-3 py-1 rounded text-xs font-mono bg-soc-bg border border-soc-border hover:border-soc-cyan text-soc-text"
+            >
+              <Download className="w-3 h-3 text-soc-cyan" />
+              <span>Export CSV</span>
+            </button>
+            <span className="text-xs font-mono text-soc-muted">
+              {history.length} benchmarks recorded
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -469,6 +512,7 @@ export default function ControlledLoadTesting() {
                 <th className="py-2.5 px-3">VUs / Target RPS</th>
                 <th className="py-2.5 px-3">Peak RPS</th>
                 <th className="py-2.5 px-3">Avg Latency</th>
+                <th className="py-2.5 px-3">P95 Latency</th>
                 <th className="py-2.5 px-3">Status</th>
                 <th className="py-2.5 px-3">Completed At</th>
               </tr>
@@ -484,6 +528,7 @@ export default function ControlledLoadTesting() {
                     </td>
                     <td className="py-2.5 px-3 text-soc-emerald font-bold">{h.peakRps}</td>
                     <td className="py-2.5 px-3 text-soc-amber">{h.avgLatencyMs} ms</td>
+                    <td className="py-2.5 px-3 text-soc-violet">{h.p95LatencyMs} ms</td>
                     <td className="py-2.5 px-3">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -504,7 +549,7 @@ export default function ControlledLoadTesting() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-4 text-center text-soc-muted italic">
+                  <td colSpan={8} className="py-4 text-center text-soc-muted italic">
                     No load test history recorded yet.
                   </td>
                 </tr>

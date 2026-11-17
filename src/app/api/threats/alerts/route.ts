@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { inMemoryStore, logAuditEvent } from "@/lib/db";
-import { getIncidentTimeline } from "@/lib/anomaly-detector";
+import { getIncidentTimeline, evaluateTrafficAnomaly } from "@/lib/anomaly-detector";
+import { verifyServerAuth } from "@/lib/auth";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -38,8 +39,13 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const auth = verifyServerAuth(req, "canAcknowledgeAlerts");
+    if (!auth.authorized && auth.errorResponse) {
+      return auth.errorResponse;
+    }
+
     const body = await req.json();
-    const { alertId, acknowledged, operatorName, operatorRole } = body;
+    const { alertId, acknowledged } = body;
 
     const alert = inMemoryStore.alerts.find((a) => a.id === alertId);
     if (!alert) {
@@ -49,8 +55,8 @@ export async function PATCH(req: Request) {
     alert.acknowledged = acknowledged !== undefined ? acknowledged : true;
 
     logAuditEvent({
-      userName: operatorName || "SOC Analyst",
-      userRole: operatorRole || "ANALYST",
+      userName: auth.operator.name,
+      userRole: auth.operator.role,
       action: "ALERT_ACKNOWLEDGED",
       resource: `Alert: ${alert.title}`,
       details: { alertId, acknowledged: alert.acknowledged },
@@ -61,6 +67,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({
       message: "Alert updated successfully.",
       alert,
+      operator: auth.operator.name,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

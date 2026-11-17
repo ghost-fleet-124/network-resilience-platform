@@ -14,12 +14,16 @@ import {
   Layers,
   FileDown,
   RefreshCw,
+  Hash,
+  ShieldAlert,
+  Key,
 } from "lucide-react";
 import { ForensicAuditEntry } from "@/lib/types";
 
 export default function Forensics() {
-  const [auditLogs, setAuditLogs] = useState<ForensicAuditEntry[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [reportData, setReportData] = useState<any>(null);
+  const [chainIntegrity, setChainIntegrity] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAction, setFilterAction] = useState("ALL");
   const [loading, setLoading] = useState(true);
@@ -29,8 +33,9 @@ export default function Forensics() {
       const res = await fetch("/api/forensics");
       if (res.ok) {
         const data = await res.json();
-        setAuditLogs(data.auditLogs);
-        setReportData(data.report);
+        setAuditLogs(data.auditLogs || []);
+        setReportData(data.report || null);
+        setChainIntegrity(data.chainIntegrity || null);
       }
     } catch (err) {
       console.error("Error fetching forensics data:", err);
@@ -57,24 +62,38 @@ export default function Forensics() {
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       log.resource.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (log.eventHash && log.eventHash.includes(searchQuery)) ||
       log.ipAddress.includes(searchQuery);
     return matchesAction && matchesQuery;
   });
 
-  const uniqueActions = ["ALL", ...Array.from(new Set(auditLogs.map((l) => l.action)))];
-
   return (
     <div className="space-y-6">
-      {/* Top Action Bar & Export Triggers */}
+      {/* Top Action Bar & Cryptographic Ledger Integrity Indicator */}
       <div className="p-4 rounded-lg bg-soc-card border border-soc-border flex flex-wrap items-center justify-between gap-4 no-print">
-        <div>
-          <h3 className="font-mono text-sm font-bold text-soc-text flex items-center space-x-2">
-            <FileText className="w-4 h-4 text-soc-cyan" />
-            <span>INCIDENT FORENSICS & AUDIT TRAIL REPOSITORY</span>
-          </h3>
-          <p className="text-xs text-soc-muted font-mono mt-0.5">
-            Cryptographically logged operator actions, policy updates, and executive post-mortem reports
-          </p>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 rounded bg-soc-bg border border-soc-border">
+            <Key className="w-5 h-5 text-soc-cyan" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="font-mono text-sm font-bold text-soc-text">
+                CRYPTOGRAPHIC AUDIT LEDGER & FORENSICS REPOSITORY
+              </h3>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                  chainIntegrity?.isValid
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                    : "bg-red-500/10 text-red-400 border-red-500/30"
+                }`}
+              >
+                {chainIntegrity?.isValid ? "SHA-256 CHAIN VERIFIED" : "INTEGRITY WARNING"}
+              </span>
+            </div>
+            <p className="text-xs text-soc-muted font-mono mt-0.5">
+              Tamper-evident append-only hash sequence ensuring non-repudiation across all operations
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -109,7 +128,10 @@ export default function Forensics() {
             </h2>
             <div className="text-[11px] text-soc-muted mt-1 space-x-3">
               <span>
-                REF ID: <strong className="text-soc-text">INC-2026-0881</strong>
+                REPORT ID: <strong className="text-soc-cyan">{reportData?.reportId || "REP-2026-0881"}</strong>
+              </span>
+              <span>
+                REF INCIDENT: <strong className="text-soc-text">INC-2026-0881</strong>
               </span>
               <span>
                 CLASSIFICATION: <strong className="text-soc-crimson">CONFIDENTIAL // LAW ENFORCEMENT & SOC ONLY</strong>
@@ -120,6 +142,9 @@ export default function Forensics() {
           <div className="text-right text-[11px] text-soc-muted">
             <div>DATE: {new Date().toLocaleDateString()}</div>
             <div>STATUS: <strong className="text-soc-emerald">ACTIVE MITIGATION CONFIRMED</strong></div>
+            <div className="text-[10px] text-soc-muted mt-0.5">
+              LEDGER: {chainIntegrity?.totalEvents || 0} Chained Events
+            </div>
           </div>
         </div>
 
@@ -129,7 +154,7 @@ export default function Forensics() {
             1. Executive Summary & Attack Mechanics
           </h4>
           <p className="text-soc-text leading-relaxed text-xs">
-            On November 17, 2026, the National 911 Emergency Dispatch Intake Portal was targeted by a high-intensity, multi-vector Distributed Denial-of-Service (DDoS) attack. The threat actor deployed an infrastructure toolkit correlated with the open-source <strong className="text-soc-cyan">ZxCDDoS</strong> framework, combining Layer 7 randomized User-Agent HTTP/2 rapid requests with Layer 4 raw socket TCP SYN backlog exhaustion. Peak volumetric ingress touched <strong className="text-soc-crimson">184,500 RPS</strong> before defensive rate limiting and WAF dropping stabilized the dispatch queue.
+            On November 17, 2026, the National 911 Emergency Dispatch Intake Portal was targeted by a high-intensity Distributed Denial-of-Service (DDoS) attack. Attribution analysis correlated the assault with the <strong className="text-soc-cyan">ZxCDDoS</strong> framework (Commit <code className="text-soc-text">{reportData?.incidentSummary?.correlatedToolkit?.commitSha?.substring(0, 10) || "db7c335ca1"}</code>), combining Layer 7 randomized User-Agent HTTP/2 rapid requests (cf.js and uambypass.js) with Layer 4 raw socket UDP datagrams and SYN backlog exhaustion. Peak volumetric ingress reached <strong className="text-soc-crimson">184,500 RPS</strong> before Token Bucket rate limiting and WAF heuristic dropping stabilized the intake queue.
           </p>
         </div>
 
@@ -139,9 +164,9 @@ export default function Forensics() {
             <h5 className="font-bold text-soc-text text-[11px] uppercase">Correlated Weaponization Toolkit</h5>
             <div className="text-[11px] text-soc-muted space-y-1">
               <div>Repository: <code className="text-soc-cyan">https://github.com/naimxbzbd/ZxCDDoS/tree/main</code></div>
-              <div>C2 Signature: <code className="text-soc-amber">!* &lt;method&gt; &lt;ip&gt; &lt;port&gt; &lt;time&gt;</code></div>
+              <div>Commit SHA: <code className="text-soc-cyan">{reportData?.incidentSummary?.correlatedToolkit?.commitSha || "db7c335ca1eb1a3871f167a521807b0ffc943d60"}</code></div>
               <div>Execution Mode: <strong className="text-soc-emerald">Zero-Execution Static AST Parsed</strong></div>
-              <div>Primary Vectors: Node.js Cluster L7 + Raw Socket SYN Flooder</div>
+              <div>Provenance: <span className="text-soc-text">Verified Source Code Inspection</span></div>
             </div>
           </div>
 
@@ -162,7 +187,7 @@ export default function Forensics() {
             2. Executed Defensive Remediations
           </h4>
           <ul className="list-disc list-inside space-y-1 text-soc-text text-xs">
-            <li>Engaged WAF heuristic expression dropping spoofed HTTP/2 headers matching ZxCDDoS patterns.</li>
+            <li>Engaged WAF heuristic expression dropping spoofed HTTP/2 headers matching cf.js and uambypass.js patterns.</li>
             <li>Enforced dynamic Token Bucket rate limiter (1,000 capacity / 250 refill rate) on <code>/api/mock/emergency-dispatch</code>.</li>
             <li>Hardened Linux host kernel network stack (<code>net.ipv4.tcp_syncookies = 1</code>, <code>somaxconn = 65535</code>).</li>
             <li>Null-routed malicious autonomous system blocks (AS49505, AS200019).</li>
@@ -170,25 +195,25 @@ export default function Forensics() {
         </div>
       </div>
 
-      {/* Forensic Audit Log Trail Table */}
+      {/* Forensic Audit Log Trail Table with Event Hashes */}
       <div className="cyber-panel p-5 space-y-4 no-print">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-soc-border pb-3">
           <div>
             <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">
               <History className="w-4 h-4 text-soc-cyan" />
-              <span>IMMUTABLE OPERATOR AUDIT TRAIL</span>
+              <span>CRYPTOGRAPHICALLY CHAINED OPERATOR AUDIT TRAIL</span>
             </h3>
             <p className="text-xs text-soc-muted font-mono mt-0.5">
-              Cryptographically verified event logs tracking all incident mitigations and system changes
+              Verified SHA-256 hash sequence tracking all incident mitigations and system changes
             </p>
           </div>
 
-          {/* Action Filter */}
+          {/* Search bar */}
           <div className="flex items-center space-x-2">
             <Search className="w-3.5 h-3.5 text-soc-muted" />
             <input
               type="text"
-              placeholder="Search audit trail..."
+              placeholder="Search audit trail or hash..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-soc-bg border border-soc-border focus:border-soc-cyan rounded px-2.5 py-1 text-xs font-mono text-soc-text outline-none"
@@ -202,10 +227,9 @@ export default function Forensics() {
               <tr>
                 <th className="py-2.5 px-3">Timestamp</th>
                 <th className="py-2.5 px-3">Operator</th>
-                <th className="py-2.5 px-3">Role</th>
                 <th className="py-2.5 px-3">Action</th>
                 <th className="py-2.5 px-3">Target Resource</th>
-                <th className="py-2.5 px-3">IP Address</th>
+                <th className="py-2.5 px-3">SHA-256 Event Hash</th>
                 <th className="py-2.5 px-3">Status</th>
               </tr>
             </thead>
@@ -215,15 +239,15 @@ export default function Forensics() {
                   <td className="py-2.5 px-3 text-soc-muted whitespace-nowrap">
                     {new Date(log.timestamp).toLocaleTimeString()}
                   </td>
-                  <td className="py-2.5 px-3 text-soc-text font-bold">{log.userName}</td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-soc-void border border-soc-border text-soc-cyan">
-                      {log.userRole}
-                    </span>
+                  <td className="py-2.5 px-3 text-soc-text font-bold">
+                    <div>{log.userName}</div>
+                    <span className="text-[10px] text-soc-muted font-normal">[{log.userRole}]</span>
                   </td>
                   <td className="py-2.5 px-3 text-soc-amber font-semibold">{log.action}</td>
                   <td className="py-2.5 px-3 text-soc-text truncate max-w-xs">{log.resource}</td>
-                  <td className="py-2.5 px-3 text-soc-muted">{log.ipAddress}</td>
+                  <td className="py-2.5 px-3 text-soc-cyan font-mono text-[10px] truncate max-w-[140px]" title={log.eventHash}>
+                    {log.eventHash ? `${log.eventHash.substring(0, 16)}...` : "LEGACY_LOG"}
+                  </td>
                   <td className="py-2.5 px-3">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${

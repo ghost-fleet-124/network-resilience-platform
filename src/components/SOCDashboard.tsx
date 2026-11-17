@@ -13,9 +13,10 @@ import {
   ExternalLink,
   Shield,
   Layers,
-  ArrowUpRight,
   TrendingDown,
   RefreshCw,
+  BadgeAlert,
+  Info,
 } from "lucide-react";
 import {
   AreaChart,
@@ -25,9 +26,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend,
 } from "recharts";
 import { CriticalTarget, SystemTelemetry } from "@/lib/types";
 
@@ -37,6 +35,8 @@ export default function SOCDashboard() {
   const [targets, setTargets] = useState<CriticalTarget[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [provenanceNotice, setProvenanceNotice] = useState<string>("");
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const fetchDashboardData = async () => {
     try {
@@ -50,6 +50,8 @@ export default function SOCDashboard() {
         const data = await telemetryRes.json();
         setTelemetry(data.current);
         setTimeSeries(data.timeSeries);
+        if (data.provenanceNotice) setProvenanceNotice(data.provenanceNotice);
+        setLastUpdated(new Date());
       }
 
       if (targetsRes.ok) {
@@ -115,13 +117,30 @@ export default function SOCDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Telemetry Provenance & Integrity Banner */}
+      <div className="p-3 rounded-lg bg-soc-card border border-soc-border flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center space-x-2 text-soc-muted">
+          <Info className="w-4 h-4 text-soc-cyan flex-shrink-0" />
+          <span>
+            <strong>DATA PROVENANCE:</strong> Ingress traffic reflects active resilience simulation{" "}
+            <span className="text-soc-cyan font-bold">[SIMULATED_BENCHMARK_FLOW]</span>. Hardware compute tracks runtime node metrics.
+          </span>
+        </div>
+        <div className="flex items-center space-x-2 text-[11px] text-soc-muted">
+          <Clock className="w-3.5 h-3.5" />
+          <span>Last Poll: {lastUpdated.toLocaleTimeString()}</span>
+        </div>
+      </div>
+
       {/* Top Telemetry Metric HUD Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Ingress Traffic RPS */}
         <div className="cyber-panel p-4 relative overflow-hidden">
           <div className="flex items-center justify-between text-soc-muted text-xs mb-2">
             <span className="font-mono uppercase tracking-wider">Total Ingress Rate</span>
-            <Activity className="w-4 h-4 text-soc-cyan" />
+            <span className="px-1.5 py-0.2 rounded text-[9px] bg-soc-void border border-soc-border text-soc-muted">
+              SIMULATED
+            </span>
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl font-mono font-bold text-soc-text">
@@ -140,7 +159,9 @@ export default function SOCDashboard() {
         <div className="cyber-panel p-4 relative overflow-hidden">
           <div className="flex items-center justify-between text-soc-muted text-xs mb-2">
             <span className="font-mono uppercase tracking-wider">Malicious Dropped Rate</span>
-            <TrendingDown className="w-4 h-4 text-soc-emerald" />
+            <span className="px-1.5 py-0.2 rounded text-[9px] bg-soc-void border border-soc-border text-soc-emerald">
+              WAF MITIGATED
+            </span>
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl font-mono font-bold text-soc-emerald">
@@ -163,7 +184,9 @@ export default function SOCDashboard() {
         <div className="cyber-panel p-4 relative overflow-hidden">
           <div className="flex items-center justify-between text-soc-muted text-xs mb-2">
             <span className="font-mono uppercase tracking-wider">Node Hardware Load</span>
-            <Cpu className="w-4 h-4 text-soc-amber" />
+            <span className="px-1.5 py-0.2 rounded text-[9px] bg-soc-void border border-soc-border text-soc-amber">
+              RUNTIME METRIC
+            </span>
           </div>
           <div className="flex items-baseline space-x-4">
             <div>
@@ -192,7 +215,9 @@ export default function SOCDashboard() {
         <div className="cyber-panel p-4 relative overflow-hidden">
           <div className="flex items-center justify-between text-soc-muted text-xs mb-2">
             <span className="font-mono uppercase tracking-wider">Network Bandwidth</span>
-            <Wifi className="w-4 h-4 text-soc-violet" />
+            <span className="px-1.5 py-0.2 rounded text-[9px] bg-soc-void border border-soc-border text-soc-violet">
+              CALCULATED
+            </span>
           </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl font-mono font-bold text-soc-text">
@@ -216,10 +241,10 @@ export default function SOCDashboard() {
             <div>
               <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-soc-cyan" />
-                <span>REAL-TIME TRAFFIC FLOW (INGRESS VS MITIGATED RPS)</span>
+                <span>TRAFFIC FLOW TELEMETRY (INGRESS VS MITIGATED RPS)</span>
               </h3>
               <p className="text-xs text-soc-muted font-mono mt-0.5">
-                Rolling 5-second sampling of Layer 4/7 packet flow
+                Rolling 5-second sampling of Layer 4/7 packet flow [SIMULATED_BENCHMARK]
               </p>
             </div>
             <div className="flex items-center space-x-3 text-[11px] font-mono">
@@ -305,10 +330,10 @@ export default function SOCDashboard() {
             <div>
               <h3 className="font-mono text-sm font-semibold text-soc-text flex items-center space-x-2">
                 <Cpu className="w-4 h-4 text-soc-amber" />
-                <span>INFRASTRUCTURE COMPUTE TELEMETRY (CPU & RAM LOAD)</span>
+                <span>HARDWARE RESOURCE UTILIZATION (CPU & RAM)</span>
               </h3>
               <p className="text-xs text-soc-muted font-mono mt-0.5">
-                Load Balancer and Gateway node resource utilization
+                Runtime load balancer resource consumption [NODE_METRIC]
               </p>
             </div>
             <div className="flex items-center space-x-3 text-[11px] font-mono">
@@ -372,7 +397,7 @@ export default function SOCDashboard() {
         </div>
       </div>
 
-      {/* Critical Infrastructure Website Availability Grid */}
+      {/* Critical Infrastructure Availability Grid */}
       <div className="cyber-panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4 border-b border-soc-border pb-3">
           <div>
@@ -381,7 +406,7 @@ export default function SOCDashboard() {
               <span>NATIONAL EMERGENCY INFRASTRUCTURE AVAILABILITY MATRIX</span>
             </h3>
             <p className="text-xs text-soc-muted font-mono mt-0.5">
-              Live status heartbeat monitoring across designated emergency response portals
+              Heartbeat polling across designated emergency intake gateways
             </p>
           </div>
           <button
@@ -390,7 +415,7 @@ export default function SOCDashboard() {
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-mono bg-soc-bg border border-soc-border hover:border-soc-cyan text-soc-text transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-soc-cyan" : ""}`} />
-            <span>Poll Status</span>
+            <span>Poll Health</span>
           </button>
         </div>
 
