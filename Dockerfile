@@ -18,6 +18,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Ensure public dir exists so the runner stage COPY succeeds even without static assets
+RUN mkdir -p /app/public
+
 # Generate Prisma Client (supports SQLite and PostgreSQL via DATABASE_URL)
 RUN npx prisma generate
 
